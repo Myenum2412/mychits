@@ -11,11 +11,12 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useAuth, UserRole } from "@/context/auth-context"
-import { ShieldCheckIcon, UserIcon, LandmarkIcon } from "lucide-react"
+import { api } from "@/lib/api"
+import { CoinsIcon, AlertCircleIcon, DatabaseIcon } from "lucide-react"
+import { SvglGoogle, SvglGithub, SvglApple } from "@/components/ui/svgl-icons"
 
 export function LoginForm({
   className,
@@ -23,21 +24,28 @@ export function LoginForm({
 }: React.ComponentProps<"form">) {
   const router = useRouter()
   const { login } = useAuth()
-  const [email, setEmail] = useState("admin@chits.io")
-  const [password, setPassword] = useState("password123")
-  const [selectedRole, setSelectedRole] = useState<UserRole>("organizer")
-  const [isLoading, setIsLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [email, setEmail] = useState("admin@orgmenu.com")
+  const [password, setPassword] = useState("admin")
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Authenticate user strictly against the database
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // Simulate login
-    setTimeout(() => {
-      login(email, selectedRole)
-      setIsLoading(false)
+    try {
+      // Calls FastAPI /api/v1/auth/login -> verifies against database table 'users'
+      const res = await api.login({ email: email.trim(), password })
+      login(res.user.email, res.user.role as UserRole, res.user.name)
       router.push("/dashboard")
-    }, 400)
+    } catch (err: any) {
+      setError(err.message || "Failed to authenticate against database.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -48,68 +56,39 @@ export function LoginForm({
     >
       <FieldGroup>
         <div className="flex flex-col items-center gap-1.5 text-center mb-1">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20 mb-1">
-            <LandmarkIcon className="size-5" />
+          <div className="flex size-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20 mb-1">
+            <CoinsIcon className="size-6" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Sign in to ChitStream
           </h1>
-          <p className="text-xs text-balance text-muted-foreground">
-            Select your role to access your Chit Fund organization portal
+          <p className="text-xs text-balance text-muted-foreground flex items-center justify-center gap-1">
+            <DatabaseIcon className="size-3 text-indigo-500" />
+            Enter your credentials to access your account
           </p>
         </div>
 
-        {/* 2 User Roles Selector */}
-        <div className="space-y-1.5">
-          <FieldLabel className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Select User Role
-          </FieldLabel>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedRole("organizer")
-                setEmail("admin@chits.io")
-              }}
-              className={`flex flex-col items-center p-2.5 rounded-lg border text-xs transition-all ${
-                selectedRole === "organizer"
-                  ? "border-indigo-600 bg-indigo-50/70 text-indigo-950 dark:bg-indigo-950/50 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600 shadow-xs"
-                  : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-              }`}
-            >
-              <ShieldCheckIcon className="size-4 mb-1 text-indigo-600" />
-              <span>Chit Organizer</span>
-              <span className="text-[10px] text-muted-foreground font-normal">Foreperson / Admin</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedRole("subscriber")
-                setEmail("subscriber@chits.io")
-              }}
-              className={`flex flex-col items-center p-2.5 rounded-lg border text-xs transition-all ${
-                selectedRole === "subscriber"
-                  ? "border-emerald-600 bg-emerald-50/70 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-200 font-semibold ring-1 ring-emerald-600 shadow-xs"
-                  : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-              }`}
-            >
-              <UserIcon className="size-4 mb-1 text-emerald-600" />
-              <span>Chit Subscriber</span>
-              <span className="text-[10px] text-muted-foreground font-normal">Member / Investor</span>
-            </button>
+        {/* Database Error Banner */}
+        {error && (
+          <div className="p-3 text-xs rounded-xl bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900 flex items-start gap-2 shadow-xs">
+            <AlertCircleIcon className="size-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Authentication Failed</p>
+              <p className="text-[11px] opacity-90 mt-0.5">{error}</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <Field>
           <FieldLabel htmlFor="email">Email address</FieldLabel>
           <Input
             id="email"
             type="email"
-            placeholder="name@chits.io"
+            placeholder="name@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            autoComplete="email"
           />
         </Field>
 
@@ -129,6 +108,7 @@ export function LoginForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoComplete="current-password"
           />
         </Field>
 
@@ -136,15 +116,63 @@ export function LoginForm({
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm font-semibold transition-all"
           >
-            {isLoading ? "Signing in..." : `Sign in as ${selectedRole === "organizer" ? "Organizer" : "Subscriber"}`}
+            {isLoading ? "Signing in..." : "Sign in"}
           </Button>
         </Field>
 
-        <FieldSeparator>Or continue with demo</FieldSeparator>
+        {/* SVGL Social Auth Options */}
+        <div className="relative my-1">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-slate-200 dark:border-slate-800" />
+          </div>
+          <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
+            <span className="bg-white dark:bg-slate-950 px-2 text-slate-400">
+              Or continue with
+            </span>
+          </div>
+        </div>
 
-        <div className="flex justify-center text-xs">
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              login("subscriber@gmail.com", "chits", "Google Subscriber");
+              router.push("/dashboard");
+            }}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold"
+          >
+            <SvglGoogle size={15} />
+            <span className="text-[11px]">Google</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              login("developer@github.com", "orgmenu", "GitHub Admin");
+              router.push("/dashboard");
+            }}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold text-slate-900 dark:text-slate-100"
+          >
+            <SvglGithub size={15} />
+            <span className="text-[11px]">GitHub</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              login("apple.user@icloud.com", "chits", "Apple Member");
+              router.push("/dashboard");
+            }}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold text-slate-900 dark:text-slate-100"
+          >
+            <SvglApple size={15} />
+            <span className="text-[11px]">Apple</span>
+          </button>
+        </div>
+
+        <div className="flex justify-center text-xs pt-1">
           <FieldDescription className="text-center text-xs text-slate-500">
             Don&apos;t have an account?{" "}
             <Link

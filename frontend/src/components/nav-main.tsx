@@ -32,7 +32,7 @@ export interface NavItem {
 
 export function NavMain({
   items,
-  label = "Chit Navigation",
+  label,
 }: {
   items: NavItem[]
   label?: string
@@ -41,10 +41,12 @@ export function NavMain({
 
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-        {label}
-      </SidebarGroupLabel>
-      <SidebarMenu>
+      {label ? (
+        <SidebarGroupLabel className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1 px-3">
+          {label}
+        </SidebarGroupLabel>
+      ) : null}
+      <SidebarMenu className="gap-1">
         {items.map((item) => {
           const hasChildren = item.items && item.items.length > 0
           const isCurrent = pathname === item.url || (hasChildren && item.items?.some((sub) => sub.url === pathname))
@@ -55,19 +57,20 @@ export function NavMain({
                 <SidebarMenuButton
                   tooltip={item.title}
                   isActive={isCurrent}
+                  className="h-11 px-3 rounded-xl transition-all"
                   render={
                     <Link
                       href={item.url}
-                      className={`flex items-center gap-2.5 font-medium transition-colors ${
+                      className={`flex items-center gap-3.5 font-medium transition-colors ${
                         isCurrent
-                          ? "text-indigo-600 dark:text-indigo-400 font-semibold"
-                          : "text-slate-600 dark:text-slate-300"
+                          ? "text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50/80 dark:bg-indigo-950/50"
+                          : "text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
                       }`}
                     />
                   }
                 >
                   {item.icon}
-                  <span>{item.title}</span>
+                  <span className="text-[15px] tracking-tight">{item.title}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             )
@@ -81,21 +84,27 @@ export function NavMain({
               render={<SidebarMenuItem />}
             >
               <CollapsibleTrigger
-                render={<SidebarMenuButton tooltip={item.title} />}
+                render={
+                  <SidebarMenuButton
+                    tooltip={item.title}
+                    className="h-11 px-3 rounded-xl transition-all"
+                  />
+                }
               >
                 {item.icon}
-                <span>{item.title}</span>
-                <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-open/collapsible:rotate-90" />
+                <span className="text-[15px] tracking-tight font-medium">{item.title}</span>
+                <ChevronRightIcon className="ml-auto size-4 transition-transform duration-200 group-data-open/collapsible:rotate-90" />
               </CollapsibleTrigger>
               <CollapsibleContent>
-                <SidebarMenuSub>
+                <SidebarMenuSub className="my-1 ml-4 border-l border-slate-200 dark:border-slate-800 pl-2 space-y-1">
                   {item.items?.map((subItem) => (
                     <SidebarMenuSubItem key={subItem.title}>
                       <SidebarMenuSubButton
+                        className="h-9 px-3 rounded-lg text-sm"
                         render={
                           <Link
                             href={subItem.url}
-                            className={pathname === subItem.url ? "text-indigo-600 font-semibold" : ""}
+                            className={`text-[13.5px] ${pathname === subItem.url ? "text-indigo-600 font-bold" : "text-slate-600 dark:text-slate-400"}`}
                           />
                         }
                       >

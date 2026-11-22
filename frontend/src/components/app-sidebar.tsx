@@ -1,46 +1,56 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
 import {
   LayoutDashboardIcon,
   LayersIcon,
   UsersIcon,
   GavelIcon,
   ReceiptIcon,
-  ShieldCheckIcon,
-  UserIcon,
-  Building2Icon,
-  CoinsIcon,
   Settings2Icon,
+  GiftIcon,
+  CreditCardIcon,
+  Building2Icon,
+  MegaphoneIcon,
+  MessageSquareIcon,
+  QrCodeIcon,
 } from "lucide-react"
 
 import { NavMain, NavItem } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
+import { SvglUpi } from "@/components/ui/svgl-icons"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
-  SidebarGroup,
+  SidebarMenu,
+  SidebarMenuItem,
+  SidebarMenuButton,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { useAuth, UserRole } from "@/context/auth-context"
+import { useAuth } from "@/context/auth-context"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { role, setRole, user, activeOrg } = useAuth()
+  const { role, user } = useAuth()
+  const pathname = usePathname()
+  const isSettingsActive = pathname.startsWith("/settings")
 
-  // Dynamic Navigation depending on active role
-  const organizerNav: NavItem[] = [
+  // Navigation for OrgMenu (Admin)
+  const orgMenuNav: NavItem[] = [
     {
       title: "Dashboard Overview",
       url: "/dashboard",
-      icon: <LayoutDashboardIcon className="size-4" />,
+      icon: <LayoutDashboardIcon className="size-5" />,
     },
     {
       title: "Chit Schemes & Groups",
       url: "/groups",
-      icon: <LayersIcon className="size-4" />,
+      icon: <LayersIcon className="size-5" />,
       items: [
         { title: "All Active Schemes", url: "/groups" },
         { title: "Create New Scheme", url: "/groups" },
@@ -49,88 +59,137 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     {
       title: "Subscribers Registry",
       url: "/members",
-      icon: <UsersIcon className="size-4" />,
+      icon: <UsersIcon className="size-5" />,
     },
     {
       title: "Auctions & Bidding",
       url: "/auctions",
-      icon: <GavelIcon className="size-4" />,
+      icon: <GavelIcon className="size-5" />,
     },
     {
       title: "Collections & Receipts",
       url: "/payments",
-      icon: <ReceiptIcon className="size-4" />,
+      icon: <ReceiptIcon className="size-5" />,
     },
     {
-      title: "Settings & WhatsApp",
-      url: "/settings",
-      icon: <Settings2Icon className="size-4" />,
+      title: "YouPI Gateway Admin",
+      url: "/gateway-admin",
+      icon: <SvglUpi size={24} className="h-4 w-auto inline shrink-0" />,
+    },
+    {
+      title: "Billing & Invoices",
+      url: "/billing",
+      icon: <CreditCardIcon className="size-5" />,
+    },
+    {
+      title: "Branch Offices",
+      url: "/branches",
+      icon: <Building2Icon className="size-5" />,
+    },
+    {
+      title: "Announcements",
+      url: "/announcements",
+      icon: <MegaphoneIcon className="size-5" />,
+    },
+    {
+      title: "Messages",
+      url: "/messages",
+      icon: <MessageSquareIcon className="size-5" />,
     },
   ]
 
-  const subscriberNav: NavItem[] = [
+  // Navigation for Chits role: Dashboard, Customers, Plans, Billing, Branches, Announcements, Rewards
+  const chitsNav: NavItem[] = [
     {
-      title: "My Chits Dashboard",
+      title: "Dashboard",
       url: "/dashboard",
-      icon: <LayoutDashboardIcon className="size-4" />,
+      icon: <LayoutDashboardIcon className="size-5" />,
     },
     {
-      title: "My Enrolled Groups",
-      url: "/groups",
-      icon: <LayersIcon className="size-4" />,
+      title: "Customers",
+      url: "/customers",
+      icon: <UsersIcon className="size-5" />,
     },
     {
-      title: "Monthly Auctions",
-      url: "/auctions",
-      icon: <GavelIcon className="size-4" />,
+      title: "Plans",
+      url: "/plans",
+      icon: <LayersIcon className="size-5" />,
     },
     {
-      title: "My Payments & Receipts",
+      title: "Billing",
+      url: "/billing",
+      icon: <CreditCardIcon className="size-5" />,
+    },
+    {
+      title: "Payments & YouPI Pay",
       url: "/payments",
-      icon: <ReceiptIcon className="size-4" />,
+      icon: <SvglUpi size={24} className="h-4 w-auto inline shrink-0" />,
     },
     {
-      title: "Settings & WhatsApp",
-      url: "/settings",
-      icon: <Settings2Icon className="size-4" />,
+      title: "Branches",
+      url: "/branches",
+      icon: <Building2Icon className="size-5" />,
+    },
+    {
+      title: "Announcements",
+      url: "/announcements",
+      icon: <MegaphoneIcon className="size-5" />,
+    },
+    {
+      title: "Messages",
+      url: "/messages",
+      icon: <MessageSquareIcon className="size-5" />,
+    },
+    {
+      title: "Rewards",
+      url: "/rewards",
+      icon: <GiftIcon className="size-5" />,
     },
   ]
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader className="space-y-2">
+      <SidebarHeader>
         {/* OrgMenu (TeamSwitcher) */}
         <TeamSwitcher />
-
-        {/* 2 User Roles Switcher Bar */}
-        <div className="px-2 py-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg flex items-center justify-between text-xs">
-          <div className="flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300">
-            {role === "organizer" ? (
-              <ShieldCheckIcon className="size-3.5 text-indigo-600" />
-            ) : (
-              <UserIcon className="size-3.5 text-emerald-600" />
-            )}
-            <span className="text-[11px] font-semibold">
-              {role === "organizer" ? "Foreperson / Admin" : "Subscriber"}
-            </span>
-          </div>
-          <button
-            onClick={() => setRole(role === "organizer" ? "subscriber" : "organizer")}
-            className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 shadow-xs border border-slate-200 dark:border-slate-600 transition-colors"
-          >
-            Switch
-          </button>
-        </div>
       </SidebarHeader>
 
       <SidebarContent>
         <NavMain
-          items={role === "organizer" ? organizerNav : subscriberNav}
-          label={role === "organizer" ? "Admin Controls" : "Subscriber Portal"}
+          items={role === "orgmenu" ? orgMenuNav : chitsNav}
+          label={role === "orgmenu" ? "Admin Controls" : undefined}
         />
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="p-2 gap-1.5">
+        {/* Pinned Down Settings Navigation */}
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              tooltip="Settings"
+              isActive={isSettingsActive}
+              className="h-11 px-3 rounded-xl transition-all"
+              render={
+                <Link
+                  href="/settings"
+                  className={`flex items-center gap-3.5 font-medium transition-colors ${
+                    isSettingsActive
+                      ? "text-indigo-600 dark:text-indigo-400 font-bold bg-indigo-50/80 dark:bg-indigo-950/50"
+                      : "text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                />
+              }
+            >
+              <Settings2Icon className="size-5 shrink-0" />
+              <span className="text-[15px] tracking-tight font-medium group-data-[collapsible=icon]:hidden">
+                Settings
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+
+        <SidebarSeparator className="my-0.5" />
+
         <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />

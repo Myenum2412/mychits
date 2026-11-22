@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { api, Auction, ChitGroup, Member } from "@/lib/api";
+import { DataTable2, TableColumn } from "@/components/ui/data-table-2";
+import { PageHeader6 } from "@/components/ui/page-header-6";
 import {
   Gavel,
   Plus,
@@ -14,6 +16,8 @@ import {
   X,
   TrendingDown,
   Gift,
+  LayoutGrid,
+  Table as TableIcon,
 } from "lucide-react";
 
 export default function AuctionsPage() {
@@ -24,6 +28,8 @@ export default function AuctionsPage() {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
 
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+
   // Record Auction Modal
   const [showModal, setShowModal] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<number | "">("");
@@ -31,6 +37,108 @@ export default function AuctionsPage() {
   const [auctionDate, setAuctionDate] = useState<string>("");
   const [bidDiscount, setBidDiscount] = useState<number>(10000);
   const [winnerMemberId, setWinnerMemberId] = useState<number | "">("");
+
+  const auctionColumns: TableColumn<Auction>[] = [
+    {
+      id: "auction_number",
+      header: "Cycle / Month",
+      sortable: true,
+      cell: (auc) => (
+        <span className="font-bold text-xs px-2 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400">
+          Month #{auc.auction_number}
+        </span>
+      ),
+    },
+    {
+      id: "chit_group_id",
+      header: "Chit Scheme",
+      sortable: true,
+      cell: (auc) => {
+        const grp = groups.find((g) => g.id === auc.chit_group_id);
+        return (
+          <span className="font-medium text-slate-800 dark:text-slate-200">
+            {grp ? grp.group_name : `Group #${auc.chit_group_id}`}
+          </span>
+        );
+      },
+    },
+    {
+      id: "auction_date",
+      header: "Auction Date",
+      sortable: true,
+      cell: (auc) => (
+        <span className="font-mono text-xs text-muted-foreground flex items-center gap-1">
+          <Calendar className="h-3 w-3" />
+          {auc.auction_date}
+        </span>
+      ),
+    },
+    {
+      id: "winner",
+      header: "Winning Bidder",
+      sortable: true,
+      cell: (auc) => (
+        <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
+          <Award className="h-3.5 w-3.5 text-amber-500" />
+          <span>{auc.winner?.name || "Not assigned"}</span>
+        </div>
+      ),
+    },
+    {
+      id: "prize_amount",
+      header: "Prize Amount",
+      sortable: true,
+      cell: (auc) => (
+        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+          ₹{auc.prize_amount.toLocaleString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      id: "bid_discount_amount",
+      header: "Bid Discount",
+      sortable: true,
+      cell: (auc) => (
+        <span className="font-medium text-slate-700 dark:text-slate-300">
+          ₹{auc.bid_discount_amount.toLocaleString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      id: "dividend_per_member",
+      header: "Dividend / Member",
+      sortable: true,
+      cell: (auc) => (
+        <span className="font-bold text-indigo-600 dark:text-indigo-400">
+          ₹{auc.dividend_per_member.toLocaleString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      id: "net_payable_amount",
+      header: "Net Installment Due",
+      sortable: true,
+      cell: (auc) => (
+        <span className="font-bold text-slate-900 dark:text-slate-100">
+          ₹{auc.net_payable_amount.toLocaleString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Action",
+      className: "text-right",
+      cell: (auc) => (
+        <button
+          onClick={() => handleDeleteAuction(auc.id)}
+          className="text-muted-foreground hover:text-rose-600 transition-colors p-1"
+          title="Delete auction record"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      ),
+    },
+  ];
 
   const loadData = async () => {
     try {
@@ -103,43 +211,102 @@ export default function AuctionsPage() {
     }
   };
 
+  const totalDiscount = auctions.reduce((acc, a) => acc + (a.bid_discount_amount || 0), 0);
+  const totalCommission = auctions.reduce((acc, a) => acc + (a.foreperson_commission || 0), 0);
+  const totalDividends = auctions.reduce((acc, a) => acc + (a.dividend_per_member || 0), 0);
+
   return (
     <DashboardShell pageTitle="Monthly Auctions">
-      <div className="max-w-7xl mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase">
-              Filter Group:
-            </label>
-            <select
-              value={selectedGroupFilter}
-              onChange={(e) =>
-                setSelectedGroupFilter(e.target.value ? Number(e.target.value) : "")
-              }
-              className="px-3 py-1.5 text-sm border rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-            >
-              <option value="">All Chit Groups</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.group_name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="w-full flex-1 flex flex-col space-y-6">
+        {/* Header Toolbar & KPI Grid using @7ovr/page-header-6 */}
+        <PageHeader6
+          tag="Auctions & Bidding"
+          title="Monthly Auctions & Dividend Math"
+          description="Manage monthly ROSCA reverse auctions, bid discounts, and dividend offset calculations."
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-xl shadow-xs">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                  Scheme:
+                </label>
+                <select
+                  value={selectedGroupFilter}
+                  onChange={(e) =>
+                    setSelectedGroupFilter(e.target.value ? Number(e.target.value) : "")
+                  }
+                  className="text-xs bg-transparent text-foreground border-none focus:outline-none cursor-pointer"
+                >
+                  <option value="">All Chit Groups</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id} className="bg-card text-foreground">
+                      {g.group_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <button
-            onClick={() => {
-              if (groups.length > 0 && !selectedGroupId) {
-                setSelectedGroupId(groups[0].id);
-              }
-              setShowModal(true);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow-sm transition-colors shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            Record Monthly Auction
-          </button>
-        </div>
+              <div className="flex items-center p-0.5 bg-muted rounded-lg border border-border">
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "table" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Table View (@7ovr/table-2)"
+                >
+                  <TableIcon className="size-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("cards")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "cards" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Grid Cards View"
+                >
+                  <LayoutGrid className="size-4" />
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (groups.length > 0 && !selectedGroupId) {
+                    setSelectedGroupId(groups[0].id);
+                  }
+                  setShowModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Record Auction</span>
+              </button>
+            </div>
+          }
+          stats={[
+            {
+              label: "Auctions Held",
+              value: `${auctions.length} Rounds`,
+              delta: "Completed bidding cycles",
+              deltaType: "positive",
+            },
+            {
+              label: "Total Bid Discounts",
+              value: `₹${totalDiscount.toLocaleString("en-IN")}`,
+              delta: "Distributed to pool",
+              deltaType: "positive",
+            },
+            {
+              label: "Foreperson Commission",
+              value: `₹${totalCommission.toLocaleString("en-IN")}`,
+              delta: "5% statutory fee",
+              deltaType: "neutral",
+            },
+            {
+              label: "Dividends Offset",
+              value: `₹${totalDividends.toLocaleString("en-IN")}`,
+              delta: "Total per-member return",
+              deltaType: "positive",
+            },
+          ]}
+        />
 
         {error && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3 text-sm text-amber-800 dark:text-amber-300">
@@ -148,7 +315,7 @@ export default function AuctionsPage() {
           </div>
         )}
 
-        {/* Auctions List */}
+        {/* Auctions Content with @7ovr/table-2 design */}
         {loading ? (
           <div className="text-center py-12 text-slate-500 dark:text-slate-400">Loading auctions...</div>
         ) : auctions.length === 0 ? (
@@ -161,6 +328,29 @@ export default function AuctionsPage() {
               Your database has zero pre-seeded auctions. When ready, click "Record Monthly Auction" to calculate dividends and prize payouts.
             </p>
           </div>
+        ) : viewMode === "table" ? (
+          <DataTable2<Auction>
+            data={auctions}
+            columns={auctionColumns}
+            getId={(auc) => auc.id}
+            searchPlaceholder="Search auction by winner, scheme, or month..."
+            searchKey={(auc) => `${auc.winner?.name || ""} Month #${auc.auction_number} ${auc.auction_date}`}
+            pageSize={7}
+            emptyMessage="No auctions match the search criteria."
+            bulkActions={{
+              onDownload: (selected) => {
+                alert(`Exporting ${selected.length} auction proceedings as PDF...`);
+              },
+              onSendReminder: (selected) => {
+                alert(`Sending auction dividend dispatch via WhatsApp for ${selected.length} cycles...`);
+              },
+              onDelete: (selected) => {
+                if (confirm(`Delete ${selected.length} selected auction records?`)) {
+                  Promise.all(selected.map((s) => api.deleteAuction(s.id))).then(() => loadData());
+                }
+              },
+            }}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {auctions.map((auc) => (

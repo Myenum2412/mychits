@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { api, Member } from "@/lib/api";
+import { DataTable2, TableColumn } from "@/components/ui/data-table-2";
+import { PageHeader6 } from "@/components/ui/page-header-6";
 import {
   Users,
   Plus,
@@ -14,7 +16,11 @@ import {
   Mail,
   MapPin,
   ShieldCheck,
+  Send,
+  Link2,
 } from "lucide-react";
+import { SvglWhatsapp, SvglGmail } from "@/components/ui/svgl-icons";
+import { SendInviteDialog } from "@/components/payments/send-invite-dialog";
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
@@ -24,6 +30,8 @@ export default function MembersPage() {
 
   // Modal
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [selectedMemberForInvite, setSelectedMemberForInvite] = useState<Member | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -86,29 +94,173 @@ export default function MembersPage() {
     }
   };
 
-  return (
-    <DashboardShell pageTitle="Subscriber Registry">
-      <div className="max-w-7xl mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search members by name or phone..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            />
+  const memberColumns: TableColumn<Member>[] = [
+    {
+      id: "id",
+      header: "ID",
+      sortable: true,
+      cell: (m) => <span className="font-mono text-xs text-muted-foreground">#{m.id}</span>,
+    },
+    {
+      id: "name",
+      header: "Subscriber Name",
+      sortable: true,
+      cell: (m) => (
+        <span className="font-semibold text-slate-900 dark:text-slate-100">
+          {m.name}
+        </span>
+      ),
+    },
+    {
+      id: "phone",
+      header: "Contact Details",
+      sortable: true,
+      cell: (m) => (
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+            <Phone className="h-3 w-3 text-muted-foreground" />
+            <span className="font-mono text-xs">{m.phone}</span>
           </div>
-
+          {m.email && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <SvglGmail size={12} className="shrink-0" />
+              <span>{m.email}</span>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "id_proof",
+      header: "KYC / ID Proof",
+      cell: (m) =>
+        m.id_proof ? (
+          <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded text-xs font-mono">
+            <ShieldCheck className="h-3 w-3 text-emerald-500" />
+            {m.id_proof}
+          </span>
+        ) : (
+          <span className="text-muted-foreground italic text-xs">Unverified</span>
+        ),
+    },
+    {
+      id: "address",
+      header: "Address",
+      cell: (m) => (
+        <span className="text-xs text-muted-foreground max-w-xs truncate block">
+          {m.address || "-"}
+        </span>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      sortable: true,
+      cell: (m) => (
+        <span
+          className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+            m.status === "active"
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"
+              : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          }`}
+        >
+          {m.status}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      className: "text-right",
+      cell: (m) => (
+        <div className="flex items-center justify-end gap-1.5">
           <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow-sm transition-colors shrink-0"
+            onClick={() => {
+              setSelectedMemberForInvite(m);
+              setShowInviteModal(true);
+            }}
+            className="text-muted-foreground hover:text-indigo-600 transition-colors p-1"
+            title="Send Payment Invite Link"
           >
-            <Plus className="h-4 w-4" />
-            Add Subscriber
+            <Link2 className="h-4 w-4" />
+          </button>
+          <a
+            href={`https://wa.me/${m.phone.replace(/[^0-9]/g, "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-muted-foreground hover:text-emerald-600 transition-colors p-1"
+            title="Chat via WhatsApp"
+          >
+            <SvglWhatsapp size={14} />
+          </a>
+          <button
+            onClick={() => handleDeleteMember(m.id)}
+            className="text-muted-foreground hover:text-rose-600 transition-colors p-1"
+            title="Delete Member"
+          >
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
+      ),
+    },
+  ];
+
+  return (
+    <DashboardShell pageTitle="Subscriber Registry">
+      <div className="w-full flex-1 flex flex-col space-y-6">
+        {/* Header Toolbar & KPI Grid using @7ovr/page-header-6 */}
+        <PageHeader6
+          tag="Subscribers & Customers"
+          title="Customer Directory"
+          description="Member KYC verification, ROSCA ticket allocation, and contact records."
+          actions={
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setSelectedMemberForInvite(null);
+                  setShowInviteModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <Link2 className="h-4 w-4" />
+                <span>Send Pay Invite</span>
+              </button>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Subscriber</span>
+              </button>
+            </div>
+          }
+          stats={[
+            {
+              label: "Total Subscribers",
+              value: `${members.length} Members`,
+              delta: "+100% active KYC",
+              deltaType: "positive",
+            },
+            {
+              label: "Active Accounts",
+              value: `${members.filter((m) => m.status === "active").length} Active`,
+              delta: "Good standing",
+              deltaType: "positive",
+            },
+            {
+              label: "KYC Verified",
+              value: `${members.filter((m) => m.id_proof).length} IDs`,
+              delta: "Govt ID verified",
+              deltaType: "neutral",
+            },
+            {
+              label: "WhatsApp Linked",
+              value: `${members.filter((m) => m.phone).length} Numbers`,
+              delta: "Instant alerts enabled",
+              deltaType: "positive",
+            },
+          ]}
+        />
 
         {error && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3 text-sm text-amber-800 dark:text-amber-300">
@@ -117,92 +269,32 @@ export default function MembersPage() {
           </div>
         )}
 
-        {/* Members Table */}
+        {/* Members Table with @7ovr/table-2 design */}
         {loading ? (
           <div className="text-center py-12 text-slate-500 dark:text-slate-400">Loading members...</div>
-        ) : members.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-12 text-center space-y-3">
-            <div className="h-14 w-14 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-              <Users className="h-7 w-7" />
-            </div>
-            <h4 className="font-semibold text-slate-900 dark:text-slate-100">No Members Enrolled</h4>
-            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Your database has zero pre-seeded members. Click "Add Subscriber" to register real participants.
-            </p>
-          </div>
         ) : (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-3.5">ID</th>
-                    <th className="px-6 py-3.5">Name</th>
-                    <th className="px-6 py-3.5">Contact</th>
-                    <th className="px-6 py-3.5">ID / Proof</th>
-                    <th className="px-6 py-3.5">Address</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {members.map((m) => (
-                    <tr key={m.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                      <td className="px-6 py-4 font-mono text-xs text-slate-400">#{m.id}</td>
-                      <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-100">
-                        {m.name}
-                      </td>
-                      <td className="px-6 py-4 space-y-0.5">
-                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                          <Phone className="h-3 w-3 text-slate-400" />
-                          <span>{m.phone}</span>
-                        </div>
-                        {m.email && (
-                          <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                            <Mail className="h-3 w-3 text-slate-400" />
-                            <span>{m.email}</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs font-mono text-slate-600 dark:text-slate-400">
-                        {m.id_proof ? (
-                          <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                            <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                            {m.id_proof}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 italic">None</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400 max-w-xs truncate">
-                        {m.address || "-"}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
-                            m.status === "active"
-                              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"
-                              : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                          }`}
-                        >
-                          {m.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleDeleteMember(m.id)}
-                          className="text-slate-400 hover:text-rose-600 transition-colors p-1"
-                          title="Delete Member"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable2<Member>
+            data={members}
+            columns={memberColumns}
+            getId={(m) => m.id}
+            searchPlaceholder="Search members by name, phone, or address..."
+            searchKey={(m) => `${m.name} ${m.phone} ${m.email || ""} ${m.id_proof || ""}`}
+            pageSize={7}
+            emptyMessage="No subscribers enrolled yet. Click 'Add Subscriber' to register members."
+            bulkActions={{
+              onDownload: (selected) => {
+                alert(`Exporting member profiles for ${selected.length} subscribers...`);
+              },
+              onSendReminder: (selected) => {
+                alert(`Sending WhatsApp announcement to ${selected.length} subscribers...`);
+              },
+              onDelete: (selected) => {
+                if (confirm(`Delete ${selected.length} selected subscriber records?`)) {
+                  Promise.all(selected.map((s) => api.deleteMember(s.id))).then(() => loadMembers());
+                }
+              },
+            }}
+          />
         )}
 
         {/* Modal: Add Subscriber */}
@@ -308,6 +400,12 @@ export default function MembersPage() {
             </div>
           </div>
         )}
+        {/* Send Payment Invite Modal */}
+        <SendInviteDialog
+          open={showInviteModal}
+          onOpenChange={setShowInviteModal}
+          defaultMember={selectedMemberForInvite}
+        />
       </div>
     </DashboardShell>
   );

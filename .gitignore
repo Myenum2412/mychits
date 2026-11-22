@@ -44,3 +44,13 @@ yarn-error.log*
 *.swo
 .DS_Store
 Thumbs.db
+
+# Database
+*.db
+*.sqlite3
+backend/chits.db
+
+# Agent skills
+.agents/
+skills-lock.json
+

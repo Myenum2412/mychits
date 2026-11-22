@@ -24,13 +24,12 @@ import {
 } from "@/components/ui/sidebar"
 import {
   ChevronsUpDownIcon,
-  ShieldCheckIcon,
-  UserCheckIcon,
   LogOutIcon,
-  RotateCcwIcon,
-  SparklesIcon,
+  ShieldCheckIcon,
+  CoinsIcon,
+  Settings2Icon,
 } from "lucide-react"
-import { useAuth, UserRole } from "@/context/auth-context"
+import { useAuth, PREDEFINED_USERS } from "@/context/auth-context"
 
 export function NavUser({
   user: initialUser,
@@ -42,18 +41,15 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
-  const { user, role, setRole, logout } = useAuth()
+  const { user, role, logout } = useAuth()
   const router = useRouter()
-
-  const handleToggleRole = () => {
-    const nextRole: UserRole = role === "organizer" ? "subscriber" : "organizer"
-    setRole(nextRole)
-  }
 
   const handleLogout = () => {
     logout()
     router.push("/login")
   }
+
+  const roleInfo = PREDEFINED_USERS[role]
 
   return (
     <SidebarMenu>
@@ -61,21 +57,21 @@ export function NavUser({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
+              <SidebarMenuButton size="lg" className="h-13 p-2.5 aria-expanded:bg-muted rounded-xl" />
             }
           >
-            <Avatar className="h-8 w-8 rounded-lg">
+            <Avatar className="h-9 w-9 rounded-xl">
               <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className="rounded-lg bg-indigo-100 text-indigo-700 font-bold">
+              <AvatarFallback className="rounded-xl bg-indigo-100 text-indigo-700 font-bold text-xs">
                 {user.name.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold text-xs text-slate-900 dark:text-slate-100">
+            <div className="grid flex-1 text-left leading-tight">
+              <span className="truncate font-bold text-sm text-slate-900 dark:text-slate-100">
                 {user.name}
               </span>
-              <span className="truncate text-[11px] font-medium text-indigo-600 dark:text-indigo-400 capitalize">
-                {role === "organizer" ? "Foreperson / Admin" : "Chit Subscriber"}
+              <span className="truncate text-xs font-semibold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                {roleInfo.roleLabel} ({roleInfo.roleBadge})
               </span>
             </div>
             <ChevronsUpDownIcon className="ml-auto size-4 text-slate-400" />
@@ -104,22 +100,30 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuLabel className="text-[10px] font-semibold uppercase text-slate-400 px-2 py-1">
-                Active User Role
-              </DropdownMenuLabel>
               <DropdownMenuItem
-                onClick={handleToggleRole}
-                className="gap-2 text-xs cursor-pointer bg-slate-50 dark:bg-slate-800/60 font-medium"
+                onClick={() => router.push("/settings")}
+                className="gap-2 text-xs cursor-pointer text-slate-700 dark:text-slate-200"
               >
-                <RotateCcwIcon className="size-3.5 text-indigo-600" />
-                <span>Switch to {role === "organizer" ? "Subscriber View" : "Organizer View"}</span>
+                <Settings2Icon className="size-3.5 text-slate-500" />
+                <span>Settings</span>
               </DropdownMenuItem>
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <div className="px-2 py-1 text-xs text-slate-500 flex items-center gap-1.5">
+                {role === "orgmenu" ? (
+                  <ShieldCheckIcon className="size-3.5 text-indigo-600" />
+                ) : (
+                  <CoinsIcon className="size-3.5 text-emerald-600" />
+                )}
+                <span>Role: <strong>{roleInfo.roleLabel} ({roleInfo.roleBadge})</strong></span>
+              </div>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem onClick={handleLogout} className="gap-2 text-xs text-rose-600 cursor-pointer">
                 <LogOutIcon className="size-3.5" />
-                <span>Log out</span>
+                <span>Sign out</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>

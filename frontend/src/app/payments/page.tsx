@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { api, Payment, ChitGroup, Member } from "@/lib/api";
+import { DataTable2, TableColumn } from "@/components/ui/data-table-2";
+import { PageHeader6 } from "@/components/ui/page-header-6";
 import {
   Receipt,
   Plus,
@@ -13,7 +15,12 @@ import {
   CreditCard,
   CheckCircle,
   User,
+  QrCode,
+  Link2,
 } from "lucide-react";
+import { SvglUpi } from "@/components/ui/svgl-icons";
+import { YouPICheckoutModal } from "@/components/youpi/youpi-checkout-modal";
+import { SendInviteDialog } from "@/components/payments/send-invite-dialog";
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -25,6 +32,8 @@ export default function PaymentsPage() {
 
   // Record Payment Modal
   const [showModal, setShowModal] = useState(false);
+  const [showYoupiModal, setShowYoupiModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [groupId, setGroupId] = useState<number | "">("");
   const [memberId, setMemberId] = useState<number | "">("");
   const [installmentNumber, setInstallmentNumber] = useState<number>(1);
@@ -91,44 +100,201 @@ export default function PaymentsPage() {
     }
   };
 
+  const paymentColumns: TableColumn<Payment>[] = [
+    {
+      id: "id",
+      header: "Receipt #",
+      sortable: true,
+      cell: (p) => (
+        <span className="font-mono text-xs text-muted-foreground font-semibold">
+          REC-{p.id.toString().padStart(5, "0")}
+        </span>
+      ),
+    },
+    {
+      id: "member",
+      header: "Subscriber",
+      sortable: true,
+      cell: (p) => (
+        <div className="font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+          <User className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>{p.member?.name || `Member #${p.member_id}`}</span>
+        </div>
+      ),
+    },
+    {
+      id: "group",
+      header: "Group & Month",
+      cell: (p) => (
+        <div>
+          <div className="text-xs font-medium text-slate-800 dark:text-slate-200">
+            {p.group?.group_name || `Group #${p.chit_group_id}`}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Month #{p.installment_number}
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "amount_paid",
+      header: "Amount Paid",
+      sortable: true,
+      cell: (p) => (
+        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+          ₹{p.amount_paid.toLocaleString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      id: "payment_mode",
+      header: "Mode",
+      sortable: true,
+      cell: (p) => (
+        <span className="text-xs uppercase px-2 py-0.5 rounded font-medium bg-muted text-foreground inline-flex items-center gap-1.5">
+          {p.payment_mode === "upi" ? <SvglUpi size={22} className="h-3 w-auto" /> : null}
+          <span>{p.payment_mode}</span>
+        </span>
+      ),
+    },
+    {
+      id: "transaction_ref",
+      header: "Ref / TXN ID",
+      cell: (p) => (
+        <span className="font-mono text-xs text-muted-foreground">
+          {p.transaction_ref || "-"}
+        </span>
+      ),
+    },
+    {
+      id: "payment_date",
+      header: "Date",
+      sortable: true,
+      cell: (p) => (
+        <span className="text-xs text-muted-foreground">
+          {new Date(p.payment_date).toLocaleDateString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Action",
+      className: "text-right",
+      cell: (p) => (
+        <button
+          onClick={() => handleDeletePayment(p.id)}
+          className="text-muted-foreground hover:text-rose-600 transition-colors p-1"
+          title="Delete Payment"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      ),
+    },
+  ];
+
+  const totalPaidAmount = payments.reduce((acc, p) => acc + p.amount_paid, 0);
+  const upiCount = payments.filter((p) => p.payment_mode === "upi").length;
+  const cashCount = payments.filter((p) => p.payment_mode === "cash").length;
+
   return (
     <DashboardShell pageTitle="Collections & Receipts">
-      <div className="max-w-7xl mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <label className="text-xs font-semibold text-slate-500 uppercase">
-              Filter Group:
-            </label>
-            <select
-              value={selectedGroupFilter}
-              onChange={(e) =>
-                setSelectedGroupFilter(e.target.value ? Number(e.target.value) : "")
-              }
-              className="px-3 py-1.5 text-sm border rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-            >
-              <option value="">All Chit Groups</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.group_name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="w-full flex-1 flex flex-col space-y-6">
+        {/* Header Toolbar & KPI Grid using @7ovr/page-header-6 */}
+        <PageHeader6
+          tag="Ledger & Receipts"
+          title="Collections & Receipts"
+          description="Comprehensive installment logs, payment modes, and WhatsApp digital receipts."
+          actions={
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-2 bg-card border border-border px-3 py-1.5 rounded-xl shadow-xs">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase">
+                  Scheme:
+                </label>
+                <select
+                  value={selectedGroupFilter}
+                  onChange={(e) =>
+                    setSelectedGroupFilter(e.target.value ? Number(e.target.value) : "")
+                  }
+                  className="text-xs bg-transparent text-foreground border-none focus:outline-none cursor-pointer"
+                >
+                  <option value="">All Chit Groups</option>
+                  {groups.map((g) => (
+                    <option key={g.id} value={g.id} className="bg-card text-foreground">
+                      {g.group_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <button
-            onClick={() => {
-              if (groups.length > 0 && !groupId) {
-                setGroupId(groups[0].id);
-                setAmountPaid(groups[0].monthly_installment);
-              }
-              setShowModal(true);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow-sm transition-colors shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            Record Payment
-          </button>
-        </div>
+              <button
+                onClick={() => {
+                  if (groups.length > 0 && !groupId) {
+                    setGroupId(groups[0].id);
+                  }
+                  setShowInviteModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <Link2 className="h-4 w-4" />
+                <span>Send Pay Invite</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (groups.length > 0 && !groupId) {
+                    setGroupId(groups[0].id);
+                    setAmountPaid(groups[0].monthly_installment);
+                  }
+                  setShowYoupiModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <SvglUpi size={26} className="h-4 w-auto" />
+                <span>Pay Online (YouPI PG)</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (groups.length > 0 && !groupId) {
+                    setGroupId(groups[0].id);
+                    setAmountPaid(groups[0].monthly_installment);
+                  }
+                  setShowModal(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Record Payment</span>
+              </button>
+            </div>
+          }
+          stats={[
+            {
+              label: "Total Collected",
+              value: `₹${totalPaidAmount.toLocaleString("en-IN")}`,
+              delta: `${payments.length} receipts logged`,
+              deltaType: "positive",
+            },
+            {
+              label: "UPI Settlements",
+              value: `${upiCount} receipts`,
+              delta: "Digital settlements",
+              deltaType: "positive",
+            },
+            {
+              label: "Cash Vouchers",
+              value: `${cashCount} receipts`,
+              delta: "Counter collections",
+              deltaType: "neutral",
+            },
+            {
+              label: "Enrolled Subscribers",
+              value: `${members.length} Members`,
+              delta: `${groups.length} Chit Pools`,
+              deltaType: "positive",
+            },
+          ]}
+        />
 
         {error && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3 text-sm text-amber-800 dark:text-amber-300">
@@ -137,82 +303,34 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        {/* Payments Table */}
+        {/* Payments Table with @7ovr/table-2 design */}
         {loading ? (
           <div className="text-center py-12 text-slate-500 dark:text-slate-400">Loading payments...</div>
-        ) : payments.length === 0 ? (
-          <div className="bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-800 rounded-2xl p-12 text-center space-y-3">
-            <div className="h-14 w-14 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
-              <Receipt className="h-7 w-7" />
-            </div>
-            <h4 className="font-semibold text-slate-900 dark:text-slate-100">No Payments Recorded</h4>
-            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-              Your database has zero pre-seeded payment receipts. Click "Record Payment" to log subscriber installments.
-            </p>
-          </div>
         ) : (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 uppercase font-semibold">
-                  <tr>
-                    <th className="px-6 py-3.5">Receipt #</th>
-                    <th className="px-6 py-3.5">Subscriber</th>
-                    <th className="px-6 py-3.5">Group & Month</th>
-                    <th className="px-6 py-3.5">Amount Paid</th>
-                    <th className="px-6 py-3.5">Mode</th>
-                    <th className="px-6 py-3.5">Ref / TXN ID</th>
-                    <th className="px-6 py-3.5">Date</th>
-                    <th className="px-6 py-3.5 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {payments.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
-                      <td className="px-6 py-4 font-mono text-xs text-slate-400">
-                        REC-{p.id.toString().padStart(5, "0")}
-                      </td>
-                      <td className="px-6 py-4 font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5 text-slate-400" />
-                        {p.member?.name || `Member #${p.member_id}`}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-xs font-medium text-slate-800 dark:text-slate-200">
-                          Group #{p.chit_group_id}
-                        </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Month #{p.installment_number}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-bold text-emerald-600 dark:text-emerald-400">
-                        ₹{p.amount_paid.toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="text-xs uppercase px-2 py-0.5 rounded font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                          {p.payment_mode}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 font-mono text-xs text-slate-500 dark:text-slate-400">
-                        {p.transaction_ref || "-"}
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-500 dark:text-slate-400">
-                        {new Date(p.payment_date).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => handleDeletePayment(p.id)}
-                          className="text-slate-400 hover:text-rose-600 transition-colors p-1"
-                          title="Delete Payment"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable2<Payment>
+            data={payments}
+            columns={paymentColumns}
+            getId={(p) => p.id}
+            searchPlaceholder="Search receipts by subscriber, TXN reference, or plan..."
+            searchKey={(p) =>
+              `${p.member?.name || ""} ${p.group?.group_name || ""} ${p.transaction_ref || ""}`
+            }
+            pageSize={7}
+            emptyMessage="No payment receipts found. Click 'Record Payment' to log collections."
+            bulkActions={{
+              onDownload: (selected) => {
+                alert(`Exporting ${selected.length} payment receipts as PDF...`);
+              },
+              onSendReminder: (selected) => {
+                alert(`Dispatching digital receipts for ${selected.length} payments via WhatsApp...`);
+              },
+              onDelete: (selected) => {
+                if (confirm(`Delete ${selected.length} selected payment records?`)) {
+                  Promise.all(selected.map((s) => api.deletePayment(s.id))).then(() => loadData());
+                }
+              },
+            }}
+          />
         )}
 
         {/* Modal: Record Payment */}
@@ -330,6 +448,7 @@ export default function PaymentsPage() {
                         onChange={(e) => setPaymentMode(e.target.value)}
                         className="w-full px-3 py-2 text-sm border rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                       >
+                        <option value="youpi_upi">YouPI Sovereign Gateway (UPI QR & Intent)</option>
                         <option value="upi">UPI (GPay/PhonePe/Paytm)</option>
                         <option value="cash">Cash</option>
                         <option value="bank_transfer">Bank Transfer (NEFT/IMPS)</option>
@@ -384,6 +503,26 @@ export default function PaymentsPage() {
             </div>
           </div>
         )}
+        {/* YouPI Sovereign PG Checkout Modal */}
+        <YouPICheckoutModal
+          open={showYoupiModal}
+          onOpenChange={setShowYoupiModal}
+          chitGroup={activeGroup || groups[0] || null}
+          member={members.find((m) => m.id === Number(memberId)) || members[0] || null}
+          amount={amountPaid}
+          onPaymentSuccess={() => {
+            loadData();
+          }}
+        />
+
+        {/* Send Payment Invite Dialog */}
+        <SendInviteDialog
+          open={showInviteModal}
+          onOpenChange={setShowInviteModal}
+          defaultGroup={activeGroup || groups[0] || null}
+          defaultMember={members.find((m) => m.id === Number(memberId)) || null}
+          defaultAmount={amountPaid}
+        />
       </div>
     </DashboardShell>
   );

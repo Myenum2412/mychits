@@ -41,18 +41,18 @@ export function TeamSwitcher({
             render={
               <SidebarMenuButton
                 size="lg"
-                className="data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground"
+                className="h-13 p-2.5 data-open:bg-sidebar-accent data-open:text-sidebar-accent-foreground rounded-xl"
               />
             }
           >
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
-              <LandmarkIcon className="size-4" />
+            <div className="flex aspect-square size-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm shrink-0">
+              <LandmarkIcon className="size-5" />
             </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+            <div className="grid flex-1 text-left leading-tight">
+              <span className="truncate font-bold text-sm tracking-tight text-slate-900 dark:text-slate-100">
                 {activeOrg.name}
               </span>
-              <span className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <span className="truncate text-xs font-medium text-slate-500 dark:text-slate-400 mt-0.5">
                 {activeOrg.plan}
               </span>
             </div>

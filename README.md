@@ -32,7 +32,42 @@ A production-ready **Chit Fund Management System** built with **Next.js (App Rou
 
 ## Quick Start Guide
 
-### 1. Backend Setup (FastAPI & PostgreSQL)
+### 🚀 1-Step Unified Runner (Recommended)
+
+You can run both the **FastAPI Backend** and **Next.js Frontend** concurrently with a single file from the project root:
+
+```powershell
+# Option A: Double-click or run the Windows batch file in Command Prompt
+.\run.bat
+
+# Option B: Run via PowerShell
+.\run.ps1
+
+# Option C: Run via Python directly
+python run.py
+
+# Option D: Run via NPM root script
+npm start
+```
+
+**Features of the unified single-file runner:**
+- Starts FastAPI (port 8000) and Next.js (port 3000) simultaneously.
+- **Automatic port freeing**: Automatically detects and terminates lingering orphaned processes on ports 8000 & 3000 to prevent `EADDRINUSE` / socket collision errors.
+- **Database pre-verification**: Ensures all SQLite tables (including YouPI payment gateway schemas) are synced before server startup.
+- **Color-coded live logs**: `[BACKEND]` in cyan, `[FRONTEND]` in magenta, `[SYSTEM]` in green.
+- **Browser auto-launch**: Automatically opens `http://localhost:3000` in your default browser as soon as both servers are ready.
+- **Graceful shutdown**: Press `Ctrl+C` once in the terminal to cleanly terminate both backend and frontend processes.
+- Supports flags:
+  - `--no-browser`: Disable opening browser automatically.
+  - `--backend-only`: Run only the FastAPI backend.
+  - `--frontend-only`: Run only Next.js frontend.
+  - `--backend-port <port>` / `--frontend-port <port>`: Customize ports.
+
+---
+
+### Manual Setup (Optional)
+
+#### 1. Backend Setup (FastAPI & PostgreSQL)
 
 1. Open PowerShell and navigate to `backend`:
    ```powershell
@@ -59,7 +94,10 @@ A production-ready **Chit Fund Management System** built with **Next.js (App Rou
    npm run dev
    ```
 3. Open in your browser:
-   - **Settings & WhatsApp Web (wwebjs.dev)**: [http://localhost:3000/settings](http://localhost:3000/settings)
    - **Dashboard**: [http://localhost:3000/dashboard](http://localhost:3000/dashboard)
+   - **YouPI Gateway Admin (OrgMenu)**: [http://localhost:3000/gateway-admin](http://localhost:3000/gateway-admin)
+   - **Payments & YouPI Pay (Chits)**: [http://localhost:3000/payments](http://localhost:3000/payments)
+   - **Unified Messages & Social Inbox**: [http://localhost:3000/messages](http://localhost:3000/messages)
+   - **Settings & WhatsApp Web (wwebjs.dev)**: [http://localhost:3000/settings](http://localhost:3000/settings)
    - **Login Page**: [http://localhost:3000/login](http://localhost:3000/login)
    - **Sign Up Page**: [http://localhost:3000/signup](http://localhost:3000/signup)

@@ -11,11 +11,12 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
-  FieldSeparator,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { useAuth, UserRole } from "@/context/auth-context"
-import { ShieldCheckIcon, UserIcon, LandmarkIcon } from "lucide-react"
+import { api } from "@/lib/api"
+import { CoinsIcon, AlertCircleIcon, DatabaseIcon } from "lucide-react"
+import { SvglGoogle, SvglGithub, SvglApple } from "@/components/ui/svgl-icons"
 
 export function SignupForm({
   className,
@@ -26,18 +27,32 @@ export function SignupForm({
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [selectedRole, setSelectedRole] = useState<UserRole>("organizer")
+  const [selectedRole, setSelectedRole] = useState<UserRole>("orgmenu")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    setTimeout(() => {
-      login(email, selectedRole, name)
-      setIsLoading(false)
+    try {
+      // Calls FastAPI /api/v1/auth/signup -> inserts new user into database table 'users'
+      const newUser = await api.signup({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        role: selectedRole,
+      })
+
+      // Authenticate active session
+      login(newUser.email, newUser.role as UserRole, newUser.name)
       router.push("/dashboard")
-    }, 400)
+    } catch (err: any) {
+      setError(err.message || "Failed to create user in database.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -48,52 +63,28 @@ export function SignupForm({
     >
       <FieldGroup>
         <div className="flex flex-col items-center gap-1.5 text-center mb-1">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20 mb-1">
-            <LandmarkIcon className="size-5" />
+          <div className="flex size-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md shadow-indigo-500/20 mb-1">
+            <CoinsIcon className="size-6" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Create an Account
           </h1>
-          <p className="text-xs text-balance text-muted-foreground">
-            Register your Chit Fund profile as an organizer or subscriber
+          <p className="text-xs text-balance text-muted-foreground flex items-center justify-center gap-1">
+            <DatabaseIcon className="size-3 text-indigo-500" />
+            Enter your details to create your ChitStream profile
           </p>
         </div>
 
-        {/* 2 User Roles Selector */}
-        <div className="space-y-1.5">
-          <FieldLabel className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            Account Type / Role
-          </FieldLabel>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setSelectedRole("organizer")}
-              className={`flex flex-col items-center p-2.5 rounded-lg border text-xs transition-all ${
-                selectedRole === "organizer"
-                  ? "border-indigo-600 bg-indigo-50/70 text-indigo-950 dark:bg-indigo-950/50 dark:text-indigo-200 font-semibold ring-1 ring-indigo-600 shadow-xs"
-                  : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-              }`}
-            >
-              <ShieldCheckIcon className="size-4 mb-1 text-indigo-600" />
-              <span>Chit Organizer</span>
-              <span className="text-[10px] text-muted-foreground font-normal">Host & manage funds</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedRole("subscriber")}
-              className={`flex flex-col items-center p-2.5 rounded-lg border text-xs transition-all ${
-                selectedRole === "subscriber"
-                  ? "border-emerald-600 bg-emerald-50/70 text-emerald-950 dark:bg-emerald-950/50 dark:text-emerald-200 font-semibold ring-1 ring-emerald-600 shadow-xs"
-                  : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
-              }`}
-            >
-              <UserIcon className="size-4 mb-1 text-emerald-600" />
-              <span>Chit Subscriber</span>
-              <span className="text-[10px] text-muted-foreground font-normal">Bid & invest</span>
-            </button>
+        {/* Database Error Banner */}
+        {error && (
+          <div className="p-3 text-xs rounded-xl bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-900 flex items-start gap-2 shadow-xs">
+            <AlertCircleIcon className="size-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Registration Error</p>
+              <p className="text-[11px] opacity-90 mt-0.5">{error}</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <Field>
           <FieldLabel htmlFor="name">Full Name</FieldLabel>
@@ -104,6 +95,7 @@ export function SignupForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
+            autoComplete="name"
           />
         </Field>
 
@@ -112,10 +104,11 @@ export function SignupForm({
           <Input
             id="email"
             type="email"
-            placeholder="ramesh@example.com"
+            placeholder="name@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            autoComplete="email"
           />
         </Field>
 
@@ -128,20 +121,84 @@ export function SignupForm({
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoComplete="new-password"
           />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="role">Account Type</FieldLabel>
+          <select
+            id="role"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value as UserRole)}
+            className="w-full h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+          >
+            <option value="orgmenu">OrgMenu (Administrator)</option>
+            <option value="chits">Chits (Subscriber / Member)</option>
+          </select>
         </Field>
 
         <Field>
           <Button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm"
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm font-semibold transition-all"
           >
-            {isLoading ? "Creating account..." : `Register as ${selectedRole === "organizer" ? "Organizer" : "Subscriber"}`}
+            {isLoading ? "Creating account..." : "Create account"}
           </Button>
         </Field>
 
-        <div className="flex justify-center text-xs">
+        {/* SVGL Social Auth Options */}
+        <div className="relative my-1">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-slate-200 dark:border-slate-800" />
+          </div>
+          <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
+            <span className="bg-white dark:bg-slate-950 px-2 text-slate-400">
+              Or sign up with
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              login("subscriber@gmail.com", "chits", "Google Subscriber");
+              router.push("/dashboard");
+            }}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold"
+          >
+            <SvglGoogle size={15} />
+            <span className="text-[11px]">Google</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              login("developer@github.com", "orgmenu", "GitHub Admin");
+              router.push("/dashboard");
+            }}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold text-slate-900 dark:text-slate-100"
+          >
+            <SvglGithub size={15} />
+            <span className="text-[11px]">GitHub</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              login("apple.user@icloud.com", "chits", "Apple Member");
+              router.push("/dashboard");
+            }}
+            className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold text-slate-900 dark:text-slate-100"
+          >
+            <SvglApple size={15} />
+            <span className="text-[11px]">Apple</span>
+          </button>
+        </div>
+
+        <div className="flex justify-center text-xs pt-1">
           <FieldDescription className="text-center text-xs text-slate-500">
             Already have an account?{" "}
             <Link

@@ -1,0 +1,14 @@
+{
+  "name": "chits-platform",
+  "version": "1.0.0",
+  "description": "Apex ROSCA Chit Fund Platform & YouPI Sovereign Payment Gateway",
+  "scripts": {
+    "start": "python run.py",
+    "dev": "python run.py",
+    "backend": "python run.py --backend-only",
+    "frontend": "python run.py --frontend-only",
+    "build": "cd frontend && npm run build"
+  },
+  "author": "Apex Chits & Finance Ltd",
+  "license": "MIT"
+}

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { api, ChitGroup, Member } from "@/lib/api";
+import { DataTable2, TableColumn } from "@/components/ui/data-table-2";
+import { PageHeader6 } from "@/components/ui/page-header-6";
 import {
   Layers,
   Plus,
@@ -13,6 +15,8 @@ import {
   Calendar,
   Users,
   CheckCircle,
+  LayoutGrid,
+  Table as TableIcon,
 } from "lucide-react";
 
 export default function GroupsPage() {
@@ -133,26 +137,187 @@ export default function GroupsPage() {
     }
   };
 
-  return (
-    <DashboardShell pageTitle="Chit Schemes & Groups">
-      <div className="max-w-7xl mx-auto w-full space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+
+  const groupColumns: TableColumn<ChitGroup>[] = [
+    {
+      id: "group_name",
+      header: "Scheme Name",
+      sortable: true,
+      cell: (g) => (
+        <div>
+          <span className="font-semibold text-slate-900 dark:text-slate-100">{g.group_name}</span>
+          <span className="block text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+            <Calendar className="h-3 w-3" /> Starts {g.start_date}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: "total_value",
+      header: "Chit Value",
+      sortable: true,
+      cell: (g) => (
+        <span className="font-bold text-slate-900 dark:text-slate-100">
+          ₹{g.total_value.toLocaleString("en-IN")}
+        </span>
+      ),
+    },
+    {
+      id: "duration_months",
+      header: "Duration",
+      sortable: true,
+      cell: (g) => (
+        <span className="font-medium text-slate-700 dark:text-slate-300">
+          {g.duration_months} Months
+        </span>
+      ),
+    },
+    {
+      id: "monthly_installment",
+      header: "Monthly Due",
+      sortable: true,
+      cell: (g) => (
+        <span className="font-bold text-indigo-600 dark:text-indigo-400">
+          ₹{g.monthly_installment.toLocaleString("en-IN")}/mo
+        </span>
+      ),
+    },
+    {
+      id: "members",
+      header: "Enrolled Tickets",
+      cell: (g) => {
+        const enrolled = g.memberships?.length || 0;
+        return (
           <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              Active Chit Schemes
-            </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Define chit pool values, durations, and manage enrolled subscriber tickets.
-            </p>
+            <span className="font-semibold text-xs">
+              {enrolled} / {g.max_members} tickets
+            </span>
+            <div className="w-24 bg-muted h-1.5 rounded-full overflow-hidden mt-1">
+              <div
+                className="bg-indigo-600 h-full rounded-full"
+                style={{ width: `${Math.min(100, (enrolled / g.max_members) * 100)}%` }}
+              />
+            </div>
           </div>
+        );
+      },
+    },
+    {
+      id: "status",
+      header: "Status",
+      sortable: true,
+      cell: (g) => (
+        <span
+          className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+            g.status === "active"
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"
+              : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+          }`}
+        >
+          {g.status}
+        </span>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      className: "text-right",
+      cell: (g) => (
+        <div className="flex items-center justify-end gap-1.5">
           <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg shadow-sm transition-colors"
+            onClick={() => {
+              setSelectedGroup(g);
+              const nextTicket = (g.memberships?.length || 0) + 1;
+              setEnrollTicketNumber(nextTicket);
+            }}
+            className="p-1 text-indigo-600 hover:text-indigo-700 transition-colors"
+            title="Enroll Subscriber Ticket"
           >
-            <Plus className="h-4 w-4" />
-            Create Chit Group
+            <UserPlus className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteGroup(g.id)}
+            className="p-1 text-muted-foreground hover:text-rose-600 transition-colors"
+            title="Delete Chit Scheme"
+          >
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
+      ),
+    },
+  ];
+
+  const totalGroupValue = groups.reduce((acc, g) => acc + g.total_value, 0);
+  const totalTickets = groups.reduce((acc, g) => acc + (g.memberships?.length || 0), 0);
+  const monthlyTotalDue = groups.reduce((acc, g) => acc + g.monthly_installment, 0);
+
+  return (
+    <DashboardShell pageTitle="Chit Schemes & Groups">
+      <div className="w-full flex-1 flex flex-col space-y-6">
+        {/* Header Toolbar & KPI Grid using @7ovr/page-header-6 */}
+        <PageHeader6
+          tag="Chit Plans & Schemes"
+          title="Chit Schemes & Groups"
+          description="Define chit pool values, durations, and manage enrolled subscriber tickets."
+          actions={
+            <div className="flex items-center gap-2">
+              <div className="flex items-center p-0.5 bg-muted rounded-lg border border-border">
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "table" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Table View (@7ovr/table-2)"
+                >
+                  <TableIcon className="size-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("cards")}
+                  className={`p-1.5 rounded-md transition-colors ${
+                    viewMode === "cards" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  title="Cards View"
+                >
+                  <LayoutGrid className="size-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl shadow-xs transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Create Chit Group</span>
+              </button>
+            </div>
+          }
+          stats={[
+            {
+              label: "Active Chit Schemes",
+              value: `${groups.length} Pools`,
+              delta: "Operational ROSCAs",
+              deltaType: "neutral",
+            },
+            {
+              label: "Combined Chit Capital",
+              value: `₹${totalGroupValue.toLocaleString("en-IN")}`,
+              delta: "Gross fund capital",
+              deltaType: "positive",
+            },
+            {
+              label: "Enrolled Tickets",
+              value: `${totalTickets} Tickets`,
+              delta: "Subscriber allocations",
+              deltaType: "positive",
+            },
+            {
+              label: "Monthly Commitments",
+              value: `₹${monthlyTotalDue.toLocaleString("en-IN")}`,
+              delta: "Per cycle collections",
+              deltaType: "neutral",
+            },
+          ]}
+        />
 
         {error && (
           <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-center gap-3 text-sm text-amber-800 dark:text-amber-300">
@@ -161,7 +326,7 @@ export default function GroupsPage() {
           </div>
         )}
 
-        {/* Groups Grid */}
+        {/* Groups Content with @7ovr/table-2 design */}
         {loading ? (
           <div className="text-center py-12 text-slate-500 dark:text-slate-400">Loading chit groups...</div>
         ) : groups.length === 0 ? (
@@ -174,6 +339,29 @@ export default function GroupsPage() {
               Your database has zero pre-seeded groups. Click "Create Chit Group" above to start your first chit fund.
             </p>
           </div>
+        ) : viewMode === "table" ? (
+          <DataTable2<ChitGroup>
+            data={groups}
+            columns={groupColumns}
+            getId={(g) => g.id}
+            searchPlaceholder="Search chit scheme name, pool value, or duration..."
+            searchKey={(g) => `${g.group_name} ${g.total_value} ${g.duration_months}`}
+            pageSize={7}
+            emptyMessage="No chit schemes match the search criteria."
+            bulkActions={{
+              onDownload: (selected) => {
+                alert(`Exporting scheme prospectus for ${selected.length} groups...`);
+              },
+              onSendReminder: (selected) => {
+                alert(`Broadcasting scheme reminder to subscribers for ${selected.length} plans...`);
+              },
+              onDelete: (selected) => {
+                if (confirm(`Delete ${selected.length} selected chit schemes?`)) {
+                  Promise.all(selected.map((s) => api.deleteGroup(s.id))).then(() => loadData());
+                }
+              },
+            }}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {groups.map((grp) => {

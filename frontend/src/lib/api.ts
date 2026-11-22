@@ -1,5 +1,21 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api/v1";
 
+export interface UserRecord {
+  id: number;
+  name: string;
+  email: string;
+  role: "orgmenu" | "chits";
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuthResponse {
+  user: UserRecord;
+  token: string;
+  message: string;
+}
+
 export interface DashboardStats {
   total_groups: number;
   active_groups: number;
@@ -59,8 +75,9 @@ export interface Auction {
   prize_amount: number;
   winner_member_id?: number | null;
   status: string;
-  winner?: Member;
   created_at: string;
+  group?: ChitGroup;
+  winner?: Member;
 }
 
 export interface Payment {
@@ -75,6 +92,8 @@ export interface Payment {
   payment_date: string;
   status: string;
   remarks?: string | null;
+  created_at: string;
+  group?: ChitGroup;
   member?: Member;
 }
 
@@ -85,6 +104,102 @@ export interface WhatsAppSession {
   connected_number: string | null;
   last_active: number;
   library: string;
+}
+
+export interface ApiConversation {
+  id: string;
+  accountId: string;
+  platform: "whatsapp" | "instagram" | "telegram" | "facebook" | "twitter" | "bluesky" | "reddit";
+  participantId: string;
+  participantName: string;
+  participantHandle: string;
+  participantAvatar?: string;
+  participantVerified?: boolean;
+  lastMessage: string;
+  updatedTime: string;
+  unreadCount: number;
+  linkedSubscriberId?: number;
+  linkedSubscriberName?: string;
+  linkedSchemeName?: string;
+  linkedTicketNo?: number;
+  dueAmount?: number;
+}
+
+export interface ApiMessage {
+  id: string;
+  conversationId: string;
+  accountId?: string;
+  platform: "whatsapp" | "instagram" | "telegram" | "facebook" | "twitter" | "bluesky" | "reddit";
+  message: string;
+  direction: "incoming" | "outgoing";
+  createdAt: string;
+  senderName: string;
+  deliveryStatus?: "sent" | "delivered" | "read" | "failed";
+}
+
+export interface YouPISettings {
+  id: number;
+  merchant_id: string;
+  merchant_name: string;
+  primary_vpa: string;
+  account_number: string;
+  ifsc_code: string;
+  bank_name: string;
+  mcc: string;
+  api_key: string;
+  webhook_secret: string;
+  min_amount: number;
+  max_amount: number;
+  is_active: boolean;
+}
+
+export interface YouPISession {
+  session_id: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  merchant_vpa: string;
+  merchant_name: string;
+  upi_intent_uri: string;
+  gpay_uri: string;
+  phonepe_uri: string;
+  paytm_uri: string;
+  bhim_uri: string;
+  cred_uri: string;
+  qr_data: string;
+  expires_at: string;
+  status: string;
+}
+
+export interface YouPITransaction {
+  id: string;
+  session_id: string;
+  order_id: string;
+  chit_group_id?: number | null;
+  member_id?: number | null;
+  amount: number;
+  currency: string;
+  merchant_vpa: string;
+  customer_vpa?: string | null;
+  utr?: string | null;
+  status: "pending" | "manual_review" | "verified" | "under_investigation" | "rejected";
+  payment_method: string;
+  observer_matched: boolean;
+  observer_source?: string | null;
+  verified_at?: string | null;
+  admin_notes?: string | null;
+  created_at: string;
+  member_name?: string | null;
+  group_name?: string | null;
+}
+
+export interface ObserverStatus {
+  name: string;
+  type: "ANDROID" | "SMS" | "GMAIL";
+  status: string;
+  details: string;
+  last_ping: string;
+  battery?: string | null;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -109,6 +224,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  // Authentication & Users (stored in database)
+  login: (credentials: { email: string; password: string }) =>
+    request<AuthResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(credentials),
+    }),
+  signup: (data: { name: string; email: string; password: string; role?: string }) =>
+    request<UserRecord>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getUsers: () => request<UserRecord[]>("/auth/users"),
+
   // Stats
   getDashboardStats: () => request<DashboardStats>("/dashboard/stats"),
 
@@ -178,4 +306,60 @@ export const api = {
         body: JSON.stringify({ user_id: userId, phone_number: phoneNumber, message }),
       }
     ),
+
+  // Omnichannel Messages & Conversations (Database backed)
+  getConversations: () => request<ApiConversation[]>("/messages/conversations"),
+  createConversation: (data: {
+    id?: string;
+    platform: string;
+    participant_name: string;
+    participant_handle: string;
+    participant_id?: string;
+    linked_subscriber_id?: number;
+    linked_subscriber_name?: string;
+    linked_scheme_name?: string;
+    initial_message?: string;
+  }) =>
+    request<ApiConversation>("/messages/conversations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getConversationMessages: (conversationId: string) =>
+    request<ApiMessage[]>(`/messages/conversations/${conversationId}/messages`),
+  sendMessage: (
+    conversationId: string,
+    data: {
+      message: string;
+      direction?: string;
+      sender_name?: string;
+      delivery_status?: string;
+    }
+  ) =>
+    request<ApiMessage>(`/messages/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteConversation: (conversationId: string) =>
+    request<void>(`/messages/conversations/${conversationId}`, { method: "DELETE" }),
+
+  // YouPI PG Sovereign Gateway
+  getYouPISettings: () => request<YouPISettings>("/youpi/settings"),
+  updateYouPISettings: (data: Partial<YouPISettings>) =>
+    request<YouPISettings>("/youpi/settings", { method: "PUT", body: JSON.stringify(data) }),
+  createYouPISession: (data: {
+    chit_group_id?: number;
+    member_id?: number;
+    installment_number?: number;
+    amount: number;
+    customer_name?: string;
+    customer_phone?: string;
+    note?: string;
+  }) =>
+    request<YouPISession>("/youpi/sessions", { method: "POST", body: JSON.stringify(data) }),
+  submitYouPIUTR: (data: { session_id: string; utr: string; customer_vpa?: string; notes?: string }) =>
+    request<YouPITransaction>("/youpi/submit-utr", { method: "POST", body: JSON.stringify(data) }),
+  getYouPITransactions: () => request<YouPITransaction[]>("/youpi/transactions"),
+  verifyYouPITransaction: (id: string, data: { action: "verify" | "investigate" | "reject"; admin_notes?: string }) =>
+    request<YouPITransaction>(`/youpi/transactions/${id}/verify`, { method: "POST", body: JSON.stringify(data) }),
+  getYouPIObservers: () => request<ObserverStatus[]>("/youpi/observers"),
 };
