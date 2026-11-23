@@ -57,12 +57,12 @@ def get_database_engine():
                 logger.warning(f"PostgreSQL connection error: {e}")
 
         # Fallback to local SQLite file
-        sqlite_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "chits.db"))
+        sqlite_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "chits.db")).replace("\\", "/")
         sqlite_url = f"sqlite:///{sqlite_path}"
         logger.info(f"PostgreSQL is unavailable. Using local database at: {sqlite_url}")
         return create_engine(
             sqlite_url,
-            connect_args={"check_same_thread": False},
+            connect_args={"check_same_thread": False, "timeout": 15},
             echo=False,
         )
 

@@ -7,6 +7,7 @@ from app.routers.dashboard import router as dashboard_router
 from app.routers.whatsapp import router as whatsapp_router
 from app.routers.messages import router as messages_router
 from app.routers.youpi import router as youpi_router
+from app.routers.meta import router as meta_router
 
 __all__ = [
     "auth_router",
@@ -18,4 +19,5 @@ __all__ = [
     "whatsapp_router",
     "messages_router",
     "youpi_router",
+    "meta_router",
 ]

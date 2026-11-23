@@ -16,6 +16,7 @@ from app.routers import (
     whatsapp_router,
     messages_router,
     youpi_router,
+    meta_router,
 )
 
 logger = logging.getLogger("uvicorn")
@@ -68,6 +69,24 @@ async def lifespan(app: FastAPI):
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables verified/created successfully.")
+
+        # Safe schema check for BrightBean Chat shared inbox columns
+        with engine.connect() as conn:
+            for col, col_def in [
+                ("status", "VARCHAR(20) DEFAULT 'open'"),
+                ("automation_paused", "BOOLEAN DEFAULT 0"),
+                ("assigned_to", "VARCHAR(100) DEFAULT 'Foreperson Admin'"),
+                ("labels", "TEXT DEFAULT '[]'"),
+                ("internal_notes", "TEXT DEFAULT ''"),
+                ("window_expires_at", "DATETIME"),
+            ]:
+                try:
+                    from sqlalchemy import text
+                    conn.execute(text(f"ALTER TABLE conversations ADD COLUMN {col} {col_def}"))
+                    conn.commit()
+                except Exception:
+                    pass
+
         seed_database_users()
     except Exception as e:
         logger.warning(f"Database initialization warning: {e}")
@@ -100,6 +119,7 @@ app.include_router(payments_router, prefix=settings.API_V1_STR)
 app.include_router(whatsapp_router, prefix=settings.API_V1_STR)
 app.include_router(messages_router, prefix=settings.API_V1_STR)
 app.include_router(youpi_router, prefix=settings.API_V1_STR)
+app.include_router(meta_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/", tags=["Health"])

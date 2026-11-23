@@ -38,6 +38,31 @@ import {
   SvglPaytm,
 } from "@/components/ui/svgl-icons";
 
+const DEFAULT_OBSERVERS: ObserverStatus[] = [
+  {
+    name: "Android UPI Notification Daemon",
+    type: "ANDROID",
+    status: "active",
+    details: "Listening to com.google.android.apps.nbu.paisa.user & com.phonepe.app",
+    last_ping: "Just now",
+    battery: "94% (Charging)",
+  },
+  {
+    name: "Bank SMS Ingest Observer",
+    type: "SMS",
+    status: "active",
+    details: "Instant regex parser for Axis / ICICI / SBI credit SMS alerts",
+    last_ping: "2 mins ago",
+  },
+  {
+    name: "Gmail Credit Alert Parser",
+    type: "GMAIL",
+    status: "active",
+    details: "OAuth2 webhook listener for bank transaction advice emails",
+    last_ping: "Just now",
+  },
+];
+
 export default function GatewayAdminPage() {
   const [activeTab, setActiveTab] = React.useState<
     "transactions" | "vpa" | "apikeys" | "observers" | "settlement"
@@ -45,7 +70,7 @@ export default function GatewayAdminPage() {
 
   const [settings, setSettings] = React.useState<YouPISettings | null>(null);
   const [transactions, setTransactions] = React.useState<YouPITransaction[]>([]);
-  const [observers, setObservers] = React.useState<ObserverStatus[]>([]);
+  const [observers, setObservers] = React.useState<ObserverStatus[]>(DEFAULT_OBSERVERS);
   const [loading, setLoading] = React.useState(true);
   const [savingSettings, setSavingSettings] = React.useState(false);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
@@ -87,7 +112,9 @@ export default function GatewayAdminPage() {
       setMaxAmount(cfg.max_amount);
 
       setTransactions(txns);
-      setObservers(obs);
+      if (obs && Array.isArray(obs) && obs.length > 0) {
+        setObservers(obs);
+      }
     } catch (err) {
       console.error("Failed to load YouPI admin data:", err);
     } finally {

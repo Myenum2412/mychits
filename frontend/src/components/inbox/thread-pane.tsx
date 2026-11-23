@@ -18,9 +18,19 @@ import {
   User,
   CreditCard,
   MessageSquare,
+  Bot,
+  UserCheck,
+  Tag,
+  AlertTriangle,
+  ChevronDown,
+  Building2,
+  Calendar,
+  X,
+  Plus,
+  Save,
 } from "lucide-react";
 import { PlatformIcon, PLATFORM_LABELS } from "./platform-icon";
-import { CHIT_QUICK_TEMPLATES } from "./types";
+import { CHIT_QUICK_TEMPLATES, BRIGHTBEAN_LABELS } from "./types";
 import type { Conversation, Message, Platform, Attachment } from "./types";
 
 interface ThreadPaneProps {
@@ -29,6 +39,7 @@ interface ThreadPaneProps {
   onSendMessage: (text: string, attachment?: Attachment) => void;
   onReactMessage: (messageId: string, emoji: string) => void;
   onOpenConnect: () => void;
+  onPatchConversation?: (convId: string, patch: Partial<Conversation>) => void;
 }
 
 export function ThreadPane({
@@ -37,14 +48,26 @@ export function ThreadPane({
   onSendMessage,
   onReactMessage,
   onOpenConnect,
+  onPatchConversation,
 }: ThreadPaneProps) {
   const [inputText, setInputText] = React.useState("");
   const [showTemplates, setShowTemplates] = React.useState(false);
+  const [showProfileDrawer, setShowProfileDrawer] = React.useState(false);
+  const [showLabelMenu, setShowLabelMenu] = React.useState(false);
+  const [showAssigneeMenu, setShowAssigneeMenu] = React.useState(false);
+  const [internalNotesText, setInternalNotesText] = React.useState("");
+  const [isSavingNotes, setIsSavingNotes] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  React.useEffect(() => {
+    if (conversation) {
+      setInternalNotesText(conversation.internalNotes || "");
+    }
+  }, [conversation?.id, conversation?.internalNotes]);
 
   if (!conversation) {
     return (
@@ -57,10 +80,10 @@ export function ThreadPane({
           <PlatformIcon platform="twitter" showBadge className="size-8" />
         </div>
         <h3 className="text-base font-bold text-foreground">
-          Unified Social Media Inbox
+          BrightBean Shared Inbox
         </h3>
         <p className="text-xs text-muted-foreground max-w-sm mt-1">
-          Select a conversation from WhatsApp, Instagram, Telegram, Messenger, or X to view messages and dispatch chit statements.
+          Select a conversation from WhatsApp, Instagram, Telegram, Messenger, or X to manage chats, pause automation, assign operators, and dispatch chit receipts.
         </p>
         <button
           onClick={onOpenConnect}
@@ -98,31 +121,75 @@ export function ThreadPane({
       .replace("{plan}", conversation.linkedSchemeName || "Active Chit Scheme")
       .replace("{date}", "25th of this month")
       .replace("{amount}", "5,000")
-      .replace("{month}", "4")
-      .replace("{id}", "00482");
+      .replace("{dividend}", "750")
+      .replace("{net}", "4,250")
+      .replace("{upi_link}", `http://localhost:3000/pay?id=${conversation.participantId}`);
 
     setInputText(populated);
     setShowTemplates(false);
   };
 
   const handleSendReceiptAttachment = () => {
-    const sampleAttachment: Attachment = {
+    const receiptAttachment: Attachment = {
       id: `att-${Date.now()}`,
       type: "receipt",
-      name: `Chit_Receipt_${conversation.participantName.replace(/\s+/g, "_")}.pdf`,
-      size: "240 KB",
+      name: `Chit_Receipt_${conversation.linkedTicketNo || "01"}.pdf`,
       url: "#",
+      size: "142 KB",
     };
     onSendMessage(
-      `Official Chit Fund Receipt attached for ${conversation.participantName} (${conversation.linkedSchemeName || "Chit Scheme"}).`,
-      sampleAttachment
+      `Official Chit Fund Receipt generated for ticket #${conversation.linkedTicketNo || "01"} in ${conversation.linkedSchemeName || "Chit Scheme"}. Verified & recorded.`,
+      receiptAttachment
     );
   };
 
+  // BrightBean Human Takeover Switch
+  const handleToggleTakeover = () => {
+    if (!onPatchConversation) return;
+    const newState = !conversation.automationPaused;
+    onPatchConversation(conversation.id, { automationPaused: newState });
+  };
+
+  // BrightBean Resolve Thread (Open <-> Done)
+  const handleToggleResolved = () => {
+    if (!onPatchConversation) return;
+    const newStatus = (conversation.status || "open") === "open" ? "done" : "open";
+    onPatchConversation(conversation.id, { status: newStatus });
+  };
+
+  // BrightBean Assignee
+  const handleSelectAssignee = (operatorName: string) => {
+    if (!onPatchConversation) return;
+    onPatchConversation(conversation.id, { assignedTo: operatorName });
+    setShowAssigneeMenu(false);
+  };
+
+  // BrightBean Labels Add/Remove
+  const handleToggleLabel = (labelName: string) => {
+    if (!onPatchConversation) return;
+    const currentLabels = conversation.labels || [];
+    const nextLabels = currentLabels.includes(labelName)
+      ? currentLabels.filter((l) => l !== labelName)
+      : [...currentLabels, labelName];
+    onPatchConversation(conversation.id, { labels: nextLabels });
+  };
+
+  // Save Internal Notes Memo
+  const handleSaveNotes = () => {
+    if (!onPatchConversation) return;
+    setIsSavingNotes(true);
+    onPatchConversation(conversation.id, { internalNotes: internalNotesText });
+    setTimeout(() => setIsSavingNotes(false), 500);
+  };
+
+  const isWindowActive = conversation.isWindowActive !== false;
+  const conversationLabels = conversation.labels || [];
+  const isResolved = conversation.status === "done";
+
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-background">
-      {/* Thread Header */}
-      <div className="px-6 py-3.5 border-b border-border bg-card flex items-center justify-between gap-4 shrink-0 shadow-2xs">
+    <div className="flex-1 flex flex-col h-full bg-background overflow-hidden relative">
+      {/* Thread Header with BrightBean Shared Inbox Controls */}
+      <div className="p-3.5 border-b border-border bg-card flex items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative shrink-0">
             {conversation.participantAvatar ? (
@@ -132,7 +199,7 @@ export function ThreadPane({
                 className="size-10 rounded-full object-cover border border-border"
               />
             ) : (
-              <div className="size-10 rounded-full bg-primary/10 text-primary font-bold text-xs flex items-center justify-center border border-primary/20">
+              <div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs border border-border">
                 {conversation.participantName.charAt(0)}
               </div>
             )}
@@ -142,190 +209,396 @@ export function ThreadPane({
           </div>
 
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="text-sm font-bold text-foreground truncate">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="text-sm font-bold text-foreground truncate">
                 {conversation.participantName}
-              </h2>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex items-center gap-1">
-                <PlatformIcon platform={conversation.platform} className="size-3" />
-                <span>{PLATFORM_LABELS[conversation.platform]}</span>
-              </span>
+              </h3>
+              {conversation.participantVerified && (
+                <ShieldCheck className="size-3.5 text-sky-500 shrink-0" />
+              )}
+              {isResolved && (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  Resolved
+                </span>
+              )}
             </div>
-            <p className="text-xs text-muted-foreground font-mono truncate">
-              {conversation.participantHandle}
-            </p>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 font-mono">
+              <span>{conversation.participantHandle}</span>
+              <span>·</span>
+              <span className="capitalize">{PLATFORM_LABELS[conversation.platform]}</span>
+            </div>
           </div>
         </div>
 
-        {/* Linked Chit Fund Subscriber Status Badge & Actions */}
-        <div className="flex items-center gap-2.5">
-          {conversation.linkedSchemeName && (
-            <div className="hidden sm:flex flex-col text-right px-3 py-1 rounded-lg border border-border bg-muted/30">
-              <span className="text-[9px] uppercase font-bold tracking-wider text-muted-foreground">
-                Linked ROSCA Plan
-              </span>
-              <span className="text-xs font-semibold text-foreground truncate max-w-44">
-                {conversation.linkedSchemeName}
-              </span>
-            </div>
-          )}
-
+        {/* Action Controls: BrightBean Takeover Switch, Labels, Assignee, Profile */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* BrightBean Human Takeover Switch */}
           <button
-            onClick={() =>
-              alert(`Calling subscriber ${conversation.participantName} via ${PLATFORM_LABELS[conversation.platform]}...`)
-            }
-            className="p-2 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Dial Social Voice Call"
+            type="button"
+            onClick={handleToggleTakeover}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+              conversation.automationPaused
+                ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 ring-1 ring-amber-500/20"
+                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30"
+            }`}
+            title="When active, bot automation is paused and operators handle replies directly."
           >
-            <Phone className="size-4" />
+            {conversation.automationPaused ? (
+              <>
+                <UserCheck className="size-3.5" />
+                <span className="hidden sm:inline">Human Takeover</span>
+              </>
+            ) : (
+              <>
+                <Bot className="size-3.5" />
+                <span className="hidden sm:inline">Bot Active</span>
+              </>
+            )}
           </button>
 
+          {/* Resolve / Re-open Thread */}
           <button
-            onClick={onOpenConnect}
-            className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+            type="button"
+            onClick={handleToggleResolved}
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
+              isResolved
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+            title={isResolved ? "Reopen conversation" : "Mark as resolved"}
           >
-            <span>Connected Channels</span>
-            <ExternalLink className="size-3 text-muted-foreground" />
+            <Check className="size-3.5" />
+            <span className="hidden md:inline">{isResolved ? "Reopen" : "Resolve"}</span>
+          </button>
+
+          {/* Labels Dropdown Trigger */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowLabelMenu(!showLabelMenu)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Tag className="size-3.5 text-indigo-500" />
+              <span className="hidden lg:inline">Tags ({conversationLabels.length})</span>
+            </button>
+
+            {/* Labels Popover */}
+            {showLabelMenu && (
+              <div className="absolute right-0 mt-1 w-56 p-2 rounded-xl border border-border bg-card shadow-lg z-30 space-y-1 text-xs animate-in fade-in-50">
+                <div className="flex items-center justify-between pb-1 border-b border-border text-[11px] font-bold text-muted-foreground">
+                  <span>Manage Labels</span>
+                  <button onClick={() => setShowLabelMenu(false)} className="hover:text-foreground">
+                    <X className="size-3" />
+                  </button>
+                </div>
+                {BRIGHTBEAN_LABELS.map((lbl) => {
+                  const has = conversationLabels.includes(lbl.name);
+                  return (
+                    <button
+                      key={lbl.name}
+                      type="button"
+                      onClick={() => handleToggleLabel(lbl.name)}
+                      className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-left transition-colors ${
+                        has ? `${lbl.bg} ${lbl.color} font-bold` : "hover:bg-muted text-foreground"
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <span className={`size-2 rounded-full ${lbl.color.replace("text-", "bg-")}`} />
+                        <span>{lbl.name}</span>
+                      </span>
+                      {has && <Check className="size-3" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Assignee Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAssigneeMenu(!showAssigneeMenu)}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold border border-border hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <User className="size-3.5 text-sky-500" />
+              <span className="hidden lg:inline">{conversation.assignedTo || "Assign"}</span>
+              <ChevronDown className="size-3" />
+            </button>
+
+            {showAssigneeMenu && (
+              <div className="absolute right-0 mt-1 w-48 p-1.5 rounded-xl border border-border bg-card shadow-lg z-30 space-y-1 text-xs animate-in fade-in-50">
+                <p className="px-2 py-1 text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                  Assign Operator
+                </p>
+                {["Foreperson Admin", "Collections Officer", "Support Agent", "Unassigned"].map((op) => (
+                  <button
+                    key={op}
+                    type="button"
+                    onClick={() => handleSelectAssignee(op)}
+                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      conversation.assignedTo === op
+                        ? "bg-primary text-primary-foreground font-bold"
+                        : "hover:bg-muted text-foreground"
+                    }`}
+                  >
+                    {op}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Toggle Subscriber Profile & Notes Drawer */}
+          <button
+            type="button"
+            onClick={() => setShowProfileDrawer(!showProfileDrawer)}
+            className={`p-2 rounded-xl border transition-colors ${
+              showProfileDrawer
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border hover:bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+            title="Subscriber Details & Internal Notes"
+          >
+            <User className="size-4" />
           </button>
         </div>
       </div>
 
-      {/* Message Feed Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-muted/10">
-        {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-2">
-            <p className="text-xs font-semibold text-muted-foreground">No messages in this conversation yet</p>
-            <p className="text-[11px] text-muted-foreground/80 max-w-xs">
-              Type a message below or insert a chit fund reminder template to start chatting.
-            </p>
+      {/* BrightBean 24-Hour Messaging Window Compliance Banner */}
+      {["whatsapp", "instagram", "facebook"].includes(conversation.platform) && (
+        <div
+          className={`px-4 py-1.5 text-xs flex items-center justify-between border-b ${
+            isWindowActive
+              ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/20"
+              : "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <Clock className="size-3.5" />
+            <span className="font-semibold text-[11px]">
+              {isWindowActive
+                ? "Meta & WhatsApp 24-Hour Compliance Window: Active (Inbound reply received)"
+                : "24-Hour Window Closed: Outside-window messages must use pre-approved Chit Notification Templates"}
+            </span>
           </div>
-        ) : (
-          messages.map((msg) => {
-          const isOutgoing = msg.direction === "outgoing";
-          return (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${isOutgoing ? "items-end" : "items-start"}`}
-            >
-              <div
-                className={`max-w-lg md:max-w-xl rounded-2xl p-4 space-y-2 shadow-2xs text-xs ${
-                  isOutgoing
-                    ? "bg-primary text-primary-foreground rounded-tr-xs"
-                    : "bg-card text-foreground border border-border rounded-tl-xs"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-4 text-[10px] opacity-75">
-                  <span className="font-semibold">{msg.senderName}</span>
-                  <span>{msg.createdAt}</span>
-                </div>
+          <span className="text-[10px] font-mono font-bold uppercase opacity-80">
+            {PLATFORM_LABELS[conversation.platform]}
+          </span>
+        </div>
+      )}
 
-                <p className="leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+      {/* Main Content Area (Messages + Optional Profile Drawer) */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Messages Thread Stream */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-muted/5">
+          {messages.length === 0 ? (
+            <div className="p-8 text-center space-y-2 max-w-sm mx-auto my-auto text-muted-foreground">
+              <MessageSquare className="size-8 mx-auto opacity-40" />
+              <p className="text-xs font-bold text-foreground">Empty Conversation Thread</p>
+              <p className="text-[11px]">
+                No messages recorded in database yet. Type a message below or insert a chit fund template to begin.
+              </p>
+            </div>
+          ) : (
+            messages.map((msg) => {
+              const isOutgoing = msg.direction === "outgoing";
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex flex-col group ${isOutgoing ? "items-end" : "items-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] sm:max-w-[70%] rounded-2xl p-3 shadow-xs space-y-1.5 ${
+                      isOutgoing
+                        ? "bg-primary text-primary-foreground rounded-tr-xs"
+                        : "bg-card border border-border text-foreground rounded-tl-xs"
+                    }`}
+                  >
+                    <p className="text-xs whitespace-pre-wrap leading-relaxed">{msg.message}</p>
 
-                {/* Attachment Card */}
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="space-y-1.5 pt-1">
-                    {msg.attachments.map((att) => (
+                    {/* PDF Receipt Card if attached */}
+                    {msg.attachments?.map((att) => (
                       <div
                         key={att.id}
-                        className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border ${
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs ${
                           isOutgoing
                             ? "bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground"
                             : "bg-muted/40 border-border text-foreground"
                         }`}
                       >
-                        <div className="flex items-center gap-2 truncate">
-                          <Receipt className="size-4 shrink-0 text-emerald-500" />
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Receipt className="size-4 shrink-0 text-emerald-400" />
                           <div className="truncate">
-                            <p className="text-xs font-semibold truncate">{att.name}</p>
-                            {att.size && (
-                              <p className="text-[10px] opacity-75">{att.size}</p>
-                            )}
+                            <p className="font-bold text-[11px] truncate">{att.name}</p>
+                            <span className="text-[9px] opacity-80">{att.size}</span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => alert(`Downloading attachment: ${att.name}`)}
-                          className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10"
-                          title="Download Statement PDF"
+                        <a
+                          href="#"
+                          className="p-1 rounded-lg hover:bg-black/10 dark:hover:bg-white/10"
+                          title="Download Receipt"
                         >
                           <Download className="size-3.5" />
-                        </button>
+                        </a>
                       </div>
                     ))}
-                  </div>
-                )}
 
-                {/* Bottom Status & Delivery Ticks */}
-                <div className="flex items-center justify-end gap-1.5 text-[10px] pt-0.5">
-                  {isOutgoing && (
-                    <span className="flex items-center gap-0.5">
-                      {msg.deliveryStatus === "read" ? (
-                        <span title="Read (Blue Ticks)">
-                          <CheckCheck className="size-3.5 text-sky-400" />
-                        </span>
-                      ) : msg.deliveryStatus === "delivered" ? (
-                        <span title="Delivered">
-                          <CheckCheck className="size-3.5 opacity-70" />
-                        </span>
-                      ) : (
-                        <span title="Sent">
-                          <Check className="size-3.5 opacity-70" />
+                    <div
+                      className={`flex items-center justify-end gap-1.5 text-[10px] ${
+                        isOutgoing ? "text-primary-foreground/70" : "text-muted-foreground"
+                      }`}
+                    >
+                      <span>{msg.createdAt}</span>
+                      {isOutgoing && (
+                        <span>
+                          {msg.deliveryStatus === "read" ? (
+                            <CheckCheck className="size-3 text-sky-300" />
+                          ) : (
+                            <Check className="size-3" />
+                          )}
                         </span>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Quick Reactions Bar on Hover */}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 px-1">
+                    <button
+                      onClick={() => onReactMessage(msg.id, "👍")}
+                      className="text-[11px] hover:scale-125 transition-transform px-1"
+                      title="React Thumbs Up"
+                    >
+                      👍
+                    </button>
+                    <button
+                      onClick={() => onReactMessage(msg.id, "❤️")}
+                      className="text-[11px] hover:scale-125 transition-transform px-1"
+                      title="React Heart"
+                    >
+                      ❤️
+                    </button>
+                    <button
+                      onClick={() => onReactMessage(msg.id, "🙏")}
+                      className="text-[11px] hover:scale-125 transition-transform px-1"
+                      title="React Thanks"
+                    >
+                      🙏
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* BrightBean Contact & Subscriber Details Drawer */}
+        {showProfileDrawer && (
+          <div className="w-80 border-l border-border bg-card p-4 space-y-4 overflow-y-auto animate-in slide-in-from-right duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <User className="size-3.5 text-primary" />
+                <span>Subscriber Profile</span>
+              </h4>
+              <button
+                onClick={() => setShowProfileDrawer(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Subscriber Info Card */}
+            <div className="space-y-3 text-xs">
+              <div>
+                <span className="text-[10px] text-muted-foreground block font-semibold">Subscriber Name</span>
+                <p className="font-bold text-foreground text-sm">{conversation.participantName}</p>
+                <p className="font-mono text-[11px] text-muted-foreground">{conversation.participantHandle}</p>
+              </div>
+
+              {conversation.linkedSchemeName && (
+                <div className="p-3 rounded-xl border border-border bg-muted/20 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-foreground">{conversation.linkedSchemeName}</span>
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                      Ticket #{conversation.linkedTicketNo || "01"}
                     </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
+                    <span className="text-muted-foreground">Pending Due:</span>
+                    <span className="font-black text-rose-600 dark:text-rose-400">
+                      ₹{(conversation.dueAmount || 4250).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Active Labels Chips */}
+              <div>
+                <span className="text-[10px] text-muted-foreground block font-semibold mb-1">Assigned Tags</span>
+                <div className="flex flex-wrap gap-1">
+                  {conversationLabels.length === 0 ? (
+                    <span className="text-[11px] text-muted-foreground italic">No labels applied</span>
+                  ) : (
+                    conversationLabels.map((lbl) => (
+                      <span
+                        key={lbl}
+                        className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1"
+                      >
+                        <span>{lbl}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLabel(lbl)}
+                          className="hover:text-rose-500"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))
                   )}
                 </div>
               </div>
 
-              {/* Reaction Bar */}
-              <div className="flex items-center gap-1 mt-1 px-1">
-                {msg.reactions?.map((r, i) => (
-                  <span
-                    key={i}
-                    onClick={() => onReactMessage(msg.id, r.emoji)}
-                    className="cursor-pointer inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-border bg-card text-[11px] hover:scale-110 transition-transform shadow-2xs"
-                  >
-                    <span>{r.emoji}</span>
-                    <span className="text-[9px] font-semibold text-muted-foreground">{r.count}</span>
+              {/* Internal Notes / Staff Memo */}
+              <div className="space-y-1.5 pt-2 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                    Internal Operator Notes
                   </span>
-                ))}
+                  <span className="text-[9px] text-amber-600 dark:text-amber-400 font-bold">Staff Only</span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={internalNotesText}
+                  onChange={(e) => setInternalNotesText(e.target.value)}
+                  placeholder="Record private subscriber remarks, follow-up notes, or auction discount agreements..."
+                  className="w-full text-xs p-2.5 rounded-xl border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+                />
                 <button
-                  onClick={() => onReactMessage(msg.id, "👍")}
-                  className="text-[11px] text-muted-foreground hover:scale-125 transition-transform px-1"
-                  title="React Thumbs Up"
+                  type="button"
+                  onClick={handleSaveNotes}
+                  disabled={isSavingNotes}
+                  className="w-full py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  👍
-                </button>
-                <button
-                  onClick={() => onReactMessage(msg.id, "❤️")}
-                  className="text-[11px] text-muted-foreground hover:scale-125 transition-transform px-1"
-                  title="React Heart"
-                >
-                  ❤️
-                </button>
-                <button
-                  onClick={() => onReactMessage(msg.id, "🙏")}
-                  className="text-[11px] text-muted-foreground hover:scale-125 transition-transform px-1"
-                  title="React Thanks"
-                >
-                  🙏
+                  <Save className="size-3 text-primary" />
+                  <span>{isSavingNotes ? "Saving..." : "Save Private Memo"}</span>
                 </button>
               </div>
             </div>
-          );
-        })
+          </div>
         )}
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Composer Section */}
       <div className="p-4 border-t border-border bg-card space-y-2 shrink-0">
-        {/* Quick Templates Drawer / Menu */}
+        {/* Quick Templates Drawer */}
         {showTemplates && (
           <div className="p-3 rounded-xl border border-border bg-muted/30 space-y-2 animate-in fade-in duration-200">
             <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <Sparkles className="size-3.5 text-indigo-500" />
-                <span>Chit Fund Quick Notice Templates</span>
+                <span>Chit Fund Quick Response Templates</span>
               </span>
               <button
                 onClick={() => setShowTemplates(false)}

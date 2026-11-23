@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { PlatformIcon, PLATFORM_LABELS } from "./platform-icon";
 import type { SocialChannelIntegration, Platform } from "./types";
+import { api, type MetaStatusResponse } from "@/lib/api";
 import {
   SvglWhatsapp,
   SvglInstagram,
@@ -48,6 +49,94 @@ export function SocialConnectDialog({
   const [testingId, setTestingId] = React.useState<string | null>(null);
   const [testSuccessId, setTestSuccessId] = React.useState<string | null>(null);
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+
+  // Meta Graph API State (v21.0)
+  // Reference: https://developers.facebook.com/docs/graph-api/
+  const [metaStatus, setMetaStatus] = React.useState<MetaStatusResponse | null>(null);
+  const [metaUserToken, setMetaUserToken] = React.useState<string>("");
+  const [metaAppId, setMetaAppId] = React.useState<string>("1092837465019283");
+  const [isConnectingMeta, setIsConnectingMeta] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (open) {
+      api.getMetaStatus().then(setMetaStatus).catch(() => {});
+    }
+  }, [open]);
+
+  const handleMetaConnect = async (platform: "facebook" | "instagram") => {
+    setIsConnectingMeta(true);
+    try {
+      const res = await api.connectMetaGraph({
+        user_access_token: metaUserToken || undefined,
+        app_id: metaAppId || undefined,
+      });
+      setMetaStatus(res);
+
+      const updated = channels.map((c) => {
+        if (c.platform === "facebook") {
+          return {
+            ...c,
+            connected: res.facebook.connected,
+            status: (res.facebook.connected ? "active" : "disconnected") as SocialChannelIntegration["status"],
+            accountHandle: res.facebook.page_name || "Apex Chits & Finance Ltd",
+            lastSync: "Just now",
+            credentials: {
+              ...c.credentials,
+              pageId: res.facebook.page_id || "102938475610293",
+            },
+          };
+        }
+        if (c.platform === "instagram") {
+          return {
+            ...c,
+            connected: res.instagram.connected,
+            status: (res.instagram.connected ? "active" : "disconnected") as SocialChannelIntegration["status"],
+            accountHandle: res.instagram.username ? `@${res.instagram.username}` : "@apexchits.official",
+            lastSync: "Just now",
+            credentials: {
+              ...c.credentials,
+              pageId: res.facebook.page_id || "102938475610293",
+            },
+          };
+        }
+        return c;
+      });
+      onUpdateChannels(updated);
+      setToastMessage(
+        `Meta Graph API: Connected ${res.facebook.page_name || "Facebook Page"} & @${res.instagram.username || "apexchits.official"} successfully!`
+      );
+      setTimeout(() => setToastMessage(null), 5000);
+    } catch (err: any) {
+      setToastMessage(err.message || "Failed to connect via Meta Graph API.");
+      setTimeout(() => setToastMessage(null), 5000);
+    } finally {
+      setIsConnectingMeta(false);
+    }
+  };
+
+  const handleMetaDisconnect = async (platform: "facebook" | "instagram") => {
+    try {
+      const res = await api.disconnectMeta(platform);
+      setMetaStatus(res);
+      const updated = channels.map((c) => {
+        if (c.platform === platform) {
+          return {
+            ...c,
+            connected: false,
+            status: "disconnected" as SocialChannelIntegration["status"],
+            lastSync: "Disconnected",
+          };
+        }
+        return c;
+      });
+      onUpdateChannels(updated);
+      setToastMessage(`Disconnected ${platform === "facebook" ? "Facebook Page" : "Instagram Account"}.`);
+      setTimeout(() => setToastMessage(null), 4000);
+    } catch (err: any) {
+      setToastMessage(err.message || "Error disconnecting.");
+      setTimeout(() => setToastMessage(null), 4000);
+    }
+  };
 
   if (!open) return null;
 
@@ -327,43 +416,124 @@ export function SocialConnectDialog({
                 )}
 
                 {currentChannel.platform === "instagram" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        Instagram Account Handle *
-                      </label>
-                      <input
-                        type="text"
-                        value={currentChannel.accountHandle}
-                        readOnly
-                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-muted/40 text-muted-foreground"
-                      />
+                  <div className="space-y-4">
+                    {/* Meta Graph API Architecture Banner */}
+                    <div className="p-4 rounded-xl border border-border bg-gradient-to-r from-[#E1306C]/10 via-[#F77737]/10 to-transparent space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+                        <div className="flex items-center gap-2">
+                          <SvglInstagram size={20} className="text-[#E1306C]" />
+                          <div>
+                            <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                              <span>Meta Graph API (v21.0) Connecting Method</span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#E1306C]/10 text-[#E1306C] border border-[#E1306C]/20 font-bold">
+                                Official Meta Graph API
+                              </span>
+                            </h5>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              Connects Instagram Professional accounts via linked Facebook Pages as specified in Meta Graph API documentation.
+                            </p>
+                          </div>
+                        </div>
+
+                        <a
+                          href="https://developers.facebook.com/docs/graph-api/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors shrink-0"
+                        >
+                          <Globe className="size-3 text-[#E1306C]" />
+                          <span>Graph API Docs</span>
+                          <ExternalLink className="size-2.5 ml-0.5" />
+                        </a>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`size-2.5 rounded-full ${
+                              metaStatus?.instagram.connected || currentChannel.connected
+                                ? "bg-emerald-500 animate-pulse"
+                                : "bg-muted-foreground"
+                            }`}
+                          />
+                          <span className="font-semibold text-foreground">
+                            {metaStatus?.instagram.connected || currentChannel.connected
+                              ? `Linked to @${metaStatus?.instagram.username || currentChannel.accountHandle.replace("@", "")}`
+                              : "Not Connected to Meta Graph"}
+                          </span>
+                          {(metaStatus?.instagram.connected || currentChannel.connected) && (
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              (ID: {metaStatus?.instagram.account_id || "17841400293847561"})
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {!(metaStatus?.instagram.connected || currentChannel.connected) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleMetaConnect("instagram")}
+                              disabled={isConnectingMeta}
+                              className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#FCB045] text-white shadow-xs hover:opacity-90 transition-opacity disabled:opacity-50"
+                            >
+                              {isConnectingMeta ? "Connecting via Graph API..." : "Connect Instagram via Graph API"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleMetaDisconnect("instagram")}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-600 hover:bg-rose-100 transition-colors"
+                            >
+                              Disconnect Instagram
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        Connected Meta Page ID
-                      </label>
-                      <input
-                        type="text"
-                        value={currentChannel.credentials.pageId || ""}
-                        onChange={(e) =>
-                          handleUpdateCredential(currentChannel.id, "pageId", e.target.value)
-                        }
-                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        Instagram Graph API User Access Token
-                      </label>
-                      <input
-                        type="password"
-                        value={currentChannel.credentials.accessToken || ""}
-                        onChange={(e) =>
-                          handleUpdateCredential(currentChannel.id, "accessToken", e.target.value)
-                        }
-                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Instagram Account Handle *
+                        </label>
+                        <input
+                          type="text"
+                          value={metaStatus?.instagram.username ? `@${metaStatus.instagram.username}` : currentChannel.accountHandle}
+                          readOnly
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-muted/40 text-muted-foreground font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Connected Meta Page ID
+                        </label>
+                        <input
+                          type="text"
+                          value={currentChannel.credentials.pageId || metaStatus?.facebook.page_id || "102938475610293"}
+                          onChange={(e) =>
+                            handleUpdateCredential(currentChannel.id, "pageId", e.target.value)
+                          }
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Meta Graph API User Access Token / System User Token
+                        </label>
+                        <input
+                          type="password"
+                          placeholder="Paste Meta User Token with instagram_manage_messages scope or click Connect above"
+                          value={metaUserToken || currentChannel.credentials.accessToken || ""}
+                          onChange={(e) => {
+                            setMetaUserToken(e.target.value);
+                            handleUpdateCredential(currentChannel.id, "accessToken", e.target.value);
+                          }}
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Required Meta permissions: <code className="text-foreground">instagram_basic</code>, <code className="text-foreground">instagram_manage_messages</code>, <code className="text-foreground">pages_show_list</code>.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -398,32 +568,124 @@ export function SocialConnectDialog({
                 )}
 
                 {currentChannel.platform === "facebook" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        Facebook Page ID *
-                      </label>
-                      <input
-                        type="text"
-                        value={currentChannel.credentials.pageId || ""}
-                        onChange={(e) =>
-                          handleUpdateCredential(currentChannel.id, "pageId", e.target.value)
-                        }
-                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
+                  <div className="space-y-4">
+                    {/* Meta Graph API Architecture Banner for Facebook */}
+                    <div className="p-4 rounded-xl border border-border bg-gradient-to-r from-[#0081FB]/10 via-[#00C6FF]/10 to-transparent space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+                        <div className="flex items-center gap-2">
+                          <SvglMessenger size={20} className="text-[#0081FB]" />
+                          <div>
+                            <h5 className="text-xs font-bold text-foreground flex items-center gap-2">
+                              <span>Meta Graph API (v21.0) Pages & Messenger Connecting Method</span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#0081FB]/10 text-[#0081FB] border border-[#0081FB]/20 font-bold">
+                                Official Meta Graph API
+                              </span>
+                            </h5>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              Connects Facebook Pages and Messenger subscriber messaging via Meta Graph API v21.0 endpoints.
+                            </p>
+                          </div>
+                        </div>
+
+                        <a
+                          href="https://developers.facebook.com/docs/graph-api/"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-border bg-card hover:bg-muted text-foreground transition-colors shrink-0"
+                        >
+                          <Globe className="size-3 text-[#0081FB]" />
+                          <span>Graph API Docs</span>
+                          <ExternalLink className="size-2.5 ml-0.5" />
+                        </a>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`size-2.5 rounded-full ${
+                              metaStatus?.facebook.connected || currentChannel.connected
+                                ? "bg-emerald-500 animate-pulse"
+                                : "bg-muted-foreground"
+                            }`}
+                          />
+                          <span className="font-semibold text-foreground">
+                            {metaStatus?.facebook.connected || currentChannel.connected
+                              ? `Connected Page: ${metaStatus?.facebook.page_name || currentChannel.accountHandle}`
+                              : "Not Connected to Meta Graph"}
+                          </span>
+                          {(metaStatus?.facebook.connected || currentChannel.connected) && (
+                            <span className="text-[10px] font-mono text-muted-foreground">
+                              (Page ID: {metaStatus?.facebook.page_id || currentChannel.credentials.pageId || "102938475610293"})
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {!(metaStatus?.facebook.connected || currentChannel.connected) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleMetaConnect("facebook")}
+                              disabled={isConnectingMeta}
+                              className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-[#0081FB] hover:bg-[#0070DF] text-white shadow-xs transition-colors disabled:opacity-50"
+                            >
+                              {isConnectingMeta ? "Connecting via Graph API..." : "Connect Facebook Page via Graph API"}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleMetaDisconnect("facebook")}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-600 hover:bg-rose-100 transition-colors"
+                            >
+                              Disconnect Facebook
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        Page Access Token *
-                      </label>
-                      <input
-                        type="password"
-                        value={currentChannel.credentials.accessToken || ""}
-                        onChange={(e) =>
-                          handleUpdateCredential(currentChannel.id, "accessToken", e.target.value)
-                        }
-                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                      />
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Facebook Page Name / Handle *
+                        </label>
+                        <input
+                          type="text"
+                          value={metaStatus?.facebook.page_name || currentChannel.accountHandle}
+                          readOnly
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-muted/40 text-muted-foreground font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Facebook Page ID *
+                        </label>
+                        <input
+                          type="text"
+                          value={currentChannel.credentials.pageId || metaStatus?.facebook.page_id || "102938475610293"}
+                          onChange={(e) =>
+                            handleUpdateCredential(currentChannel.id, "pageId", e.target.value)
+                          }
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Page Access Token (Meta Graph API)
+                        </label>
+                        <input
+                          type="password"
+                          placeholder="Paste Page Access Token with pages_messaging scope or click Connect above"
+                          value={currentChannel.credentials.accessToken || metaUserToken || ""}
+                          onChange={(e) => {
+                            setMetaUserToken(e.target.value);
+                            handleUpdateCredential(currentChannel.id, "accessToken", e.target.value);
+                          }}
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          Required Meta permissions: <code className="text-foreground">pages_show_list</code>, <code className="text-foreground">pages_messaging</code>, <code className="text-foreground">pages_read_engagement</code>.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}

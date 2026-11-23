@@ -106,6 +106,8 @@ export interface WhatsAppSession {
   library: string;
 }
 
+export type WhatsAppStatus = WhatsAppSession;
+
 export interface ApiConversation {
   id: string;
   accountId: string;
@@ -118,11 +120,55 @@ export interface ApiConversation {
   lastMessage: string;
   updatedTime: string;
   unreadCount: number;
+  status?: "open" | "done";
+  automationPaused?: boolean;
+  assignedTo?: string;
+  labels?: string[];
+  internalNotes?: string;
+  windowExpiresAt?: string;
+  isWindowActive?: boolean;
   linkedSubscriberId?: number;
   linkedSubscriberName?: string;
   linkedSchemeName?: string;
   linkedTicketNo?: number;
   dueAmount?: number;
+}
+
+export interface BrightBeanFlow {
+  id: string;
+  name: string;
+  description: string;
+  trigger_type: string;
+  trigger_keyword: string;
+  status: string;
+  nodes_json: string;
+  edges_json: string;
+  executions_count: number;
+  created_at: string;
+}
+
+export interface BrightBeanTrigger {
+  id: string;
+  keyword: string;
+  match_type: string;
+  action: string;
+  reply_text: string;
+  target_flow_id?: string | null;
+  label_to_add?: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface BrightBeanBroadcast {
+  id: string;
+  title: string;
+  channel: string;
+  target_segment: string;
+  message: string;
+  status: string;
+  sent_count: number;
+  delivered_count: number;
+  created_at: string;
 }
 
 export interface ApiMessage {
@@ -200,6 +246,60 @@ export interface ObserverStatus {
   details: string;
   last_ping: string;
   battery?: string | null;
+}
+
+export interface MetaFacebookStatus {
+  connected: boolean;
+  page_id?: string | null;
+  page_name?: string | null;
+  category?: string | null;
+}
+
+export interface MetaInstagramStatus {
+  connected: boolean;
+  account_id?: string | null;
+  username?: string | null;
+  name?: string | null;
+  profile_picture_url?: string | null;
+}
+
+export interface MetaStatusResponse {
+  connected: boolean;
+  api_version: string;
+  documentation_url: string;
+  facebook: MetaFacebookStatus;
+  instagram: MetaInstagramStatus;
+  app_id?: string | null;
+  webhook_url: string;
+  webhook_verify_token: string;
+}
+
+export interface MetaConnectRequest {
+  user_access_token?: string;
+  app_id?: string;
+  app_secret?: string;
+  page_id?: string;
+  page_name?: string;
+  page_access_token?: string;
+  instagram_account_id?: string;
+  instagram_username?: string;
+}
+
+export interface MetaSendMessageResponse {
+  success: boolean;
+  platform: string;
+  message_id: string;
+  recipient_id: string;
+  status: string;
+  api_endpoint: string;
+  meta_response?: Record<string, unknown>;
+}
+
+export interface MetaOAuthUrlResponse {
+  oauth_url: string;
+  scopes: string[];
+  api_version: string;
+  docs_url: string;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -341,6 +441,29 @@ export const api = {
     }),
   deleteConversation: (conversationId: string) =>
     request<void>(`/messages/conversations/${conversationId}`, { method: "DELETE" }),
+  patchConversation: (
+    conversationId: string,
+    data: {
+      status?: "open" | "done";
+      automation_paused?: boolean;
+      assigned_to?: string;
+      labels?: string[];
+      internal_notes?: string;
+    }
+  ) =>
+    request<ApiConversation>(`/messages/conversations/${conversationId}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  getFlows: () => request<BrightBeanFlow[]>("/messages/flows"),
+  createFlow: (data: Partial<BrightBeanFlow>) =>
+    request<BrightBeanFlow>("/messages/flows", { method: "POST", body: JSON.stringify(data) }),
+  getTriggers: () => request<BrightBeanTrigger[]>("/messages/triggers"),
+  createTrigger: (data: Partial<BrightBeanTrigger>) =>
+    request<BrightBeanTrigger>("/messages/triggers", { method: "POST", body: JSON.stringify(data) }),
+  getBroadcasts: () => request<BrightBeanBroadcast[]>("/messages/broadcasts"),
+  createBroadcast: (data: Partial<BrightBeanBroadcast>) =>
+    request<BrightBeanBroadcast>("/messages/broadcasts", { method: "POST", body: JSON.stringify(data) }),
 
   // YouPI PG Sovereign Gateway
   getYouPISettings: () => request<YouPISettings>("/youpi/settings"),
@@ -362,4 +485,34 @@ export const api = {
   verifyYouPITransaction: (id: string, data: { action: "verify" | "investigate" | "reject"; admin_notes?: string }) =>
     request<YouPITransaction>(`/youpi/transactions/${id}/verify`, { method: "POST", body: JSON.stringify(data) }),
   getYouPIObservers: () => request<ObserverStatus[]>("/youpi/observers"),
+
+  // Meta Graph API (v21.0 - Facebook & Instagram Direct)
+  // Reference: https://developers.facebook.com/docs/graph-api/
+  getMetaStatus: () => request<MetaStatusResponse>("/meta/status"),
+  getMetaOAuthUrl: (appId?: string, redirectUri?: string) => {
+    const params = new URLSearchParams();
+    if (appId) params.append("app_id", appId);
+    if (redirectUri) params.append("redirect_uri", redirectUri);
+    const q = params.toString();
+    return request<MetaOAuthUrlResponse>(`/meta/oauth-url${q ? `?${q}` : ""}`);
+  },
+  connectMetaGraph: (data: MetaConnectRequest) =>
+    request<MetaStatusResponse>("/meta/connect", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  disconnectMeta: (platform?: "facebook" | "instagram") => {
+    const q = platform ? `?platform=${platform}` : "";
+    return request<MetaStatusResponse>(`/meta/disconnect${q}`, { method: "POST" });
+  },
+  sendMetaMessage: (data: {
+    platform: string;
+    recipient_id: string;
+    message: string;
+    conversation_id?: string;
+  }) =>
+    request<MetaSendMessageResponse>("/meta/send-message", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 };

@@ -1,12 +1,18 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { PageHeader6 } from "@/components/ui/page-header-6";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { ThreadPane } from "@/components/inbox/thread-pane";
+import { FlowBuilder } from "@/components/inbox/flow-builder";
+import { TriggerManager } from "@/components/inbox/trigger-manager";
+import { BroadcastManager } from "@/components/inbox/broadcast-manager";
+import { ChannelManager } from "@/components/inbox/channel-manager";
 import { SocialConnectDialog } from "@/components/inbox/social-connect-dialog";
 import { NewChatDialog } from "@/components/inbox/new-chat-dialog";
+import { SendInviteDialog } from "@/components/payments/send-invite-dialog";
 import {
   INITIAL_SOCIAL_CHANNELS,
   INITIAL_CONVERSATIONS,
@@ -19,16 +25,39 @@ import type {
   Platform,
   Attachment,
 } from "@/components/inbox/types";
-import { api, type ApiConversation, type ApiMessage } from "@/lib/api";
-import { Globe, Plus, MessageSquare, RefreshCw, Link2 } from "lucide-react";
+import { api } from "@/lib/api";
+import {
+  Globe,
+  Plus,
+  MessageSquare,
+  Workflow,
+  Zap,
+  Megaphone,
+  RefreshCw,
+  Link2,
+} from "lucide-react";
 import {
   SvglWhatsapp,
   SvglInstagram,
   SvglTelegram,
 } from "@/components/ui/svgl-icons";
-import { SendInviteDialog } from "@/components/payments/send-invite-dialog";
 
-export default function MessagesPage() {
+type TabType = "inbox" | "flows" | "triggers" | "broadcasts" | "channels";
+
+const TABS: { id: TabType; label: string; icon: React.ElementType }[] = [
+  { id: "inbox", label: "Shared Inbox", icon: MessageSquare },
+  { id: "flows", label: "Flow Automations", icon: Workflow },
+  { id: "triggers", label: "Keyword Triggers", icon: Zap },
+  { id: "broadcasts", label: "Broadcast Campaigns", icon: Megaphone },
+  { id: "channels", label: "Connected Channels", icon: Globe },
+];
+
+function MessagesHubContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const tabParam = searchParams.get("tab") as TabType | null;
+
+  const [activeTab, setActiveTab] = React.useState<TabType>(tabParam || "inbox");
   const [channels, setChannels] = React.useState<SocialChannelIntegration[]>(INITIAL_SOCIAL_CHANNELS);
   const [conversations, setConversations] = React.useState<Conversation[]>(INITIAL_CONVERSATIONS);
   const [allMessages, setAllMessages] = React.useState<Record<string, Message[]>>(INITIAL_MESSAGES);
@@ -38,6 +67,21 @@ export default function MessagesPage() {
   const [newChatOpen, setNewChatOpen] = React.useState(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
+
+  // Sync tab with URL query parameter changes
+  React.useEffect(() => {
+    if (tabParam && ["inbox", "flows", "triggers", "broadcasts", "channels"].includes(tabParam)) {
+      setActiveTab(tabParam);
+    } else {
+      setActiveTab("inbox");
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (newTab: TabType) => {
+    setActiveTab(newTab);
+    const url = newTab === "inbox" ? "/messages" : `/messages?tab=${newTab}`;
+    router.push(url, { scroll: false });
+  };
 
   // Load real conversations and WhatsApp status from database on mount
   const refreshConversations = React.useCallback(async () => {
@@ -130,7 +174,26 @@ export default function MessagesPage() {
     return allMessages[selectedId] || [];
   }, [allMessages, selectedId]);
 
-  // Real send message handler: records message in backend database & dispatches via WhatsApp if applicable
+  // BrightBean Shared Inbox Controller: Human takeover, tags, operators, notes
+  const handlePatchConversation = async (convId: string, patch: Partial<Conversation>) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, ...patch } : c))
+    );
+
+    try {
+      await api.patchConversation(convId, {
+        status: patch.status,
+        automation_paused: patch.automationPaused,
+        assigned_to: patch.assignedTo,
+        labels: patch.labels,
+        internal_notes: patch.internalNotes,
+      });
+    } catch (err) {
+      console.error("Failed to patch conversation:", err);
+    }
+  };
+
+  // Send message handler: records message in backend database & dispatches via WhatsApp if applicable
   const handleSendMessage = async (text: string, attachment?: Attachment) => {
     if (!selectedId || !selectedConversation) return;
 
@@ -147,13 +210,11 @@ export default function MessagesPage() {
       attachments: attachment ? [attachment] : undefined,
     };
 
-    // Optimistic UI update
     setAllMessages((prev) => ({
       ...prev,
       [selectedId]: [...(prev[selectedId] || []), optimisticMsg],
     }));
 
-    // Update conversation snippet
     setConversations((prev) =>
       prev.map((c) =>
         c.id === selectedId
@@ -167,7 +228,6 @@ export default function MessagesPage() {
     );
 
     try {
-      // 1. Post to backend REST API database
       await api.sendMessage(selectedId, {
         message: text,
         direction: "outgoing",
@@ -175,7 +235,6 @@ export default function MessagesPage() {
         delivery_status: "delivered",
       });
 
-      // 2. If WhatsApp, send to backend wwebjs.dev endpoint
       if (selectedConversation.platform === "whatsapp") {
         api
           .sendWhatsAppMessage("admin", selectedConversation.participantHandle, text)
@@ -210,7 +269,6 @@ export default function MessagesPage() {
     });
   };
 
-  // Real conversation creation: creates in backend database
   const handleStartChat = async (newConv: Partial<Conversation>, initialText: string) => {
     try {
       const created = await api.createConversation({
@@ -233,7 +291,6 @@ export default function MessagesPage() {
       setConversations((prev) => [fullConv, ...prev.filter((c) => c.id !== fullConv.id)]);
       setSelectedId(fullConv.id);
 
-      // Load initial message from backend
       const msgs = await api.getConversationMessages(fullConv.id);
       if (Array.isArray(msgs)) {
         setAllMessages((prev) => ({
@@ -247,7 +304,6 @@ export default function MessagesPage() {
       }
     } catch (err) {
       console.error("Failed to persist new conversation:", err);
-      // Fallback local update
       const fallbackConv: Conversation = {
         id: newConv.id || `conv-${Date.now()}`,
         accountId: newConv.accountId || "ch-whatsapp",
@@ -266,53 +322,80 @@ export default function MessagesPage() {
   };
 
   return (
-    <DashboardShell pageTitle="Unified Messages & Social Inbox">
-      <div className="w-full flex-1 flex flex-col space-y-6">
-        {/* PageHeader6 Toolbar */}
-        <PageHeader6
-          tag="Unified Omnichannel Inbox"
-          title="Messages & Social Media Integration"
-          description="Open source unified inbox for WhatsApp, Instagram, Telegram, Messenger, and X (Twitter) powered by Zernio architecture."
-          actions={
-            <div className="flex items-center gap-2.5">
-              <button
-                onClick={refreshConversations}
-                disabled={isLoading}
-                title="Refresh Conversations"
-                className="p-2 border border-border bg-card hover:bg-muted text-foreground rounded-xl shadow-xs transition-colors disabled:opacity-50"
-              >
-                <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
-              </button>
-              <button
-                onClick={() => setInviteOpen(true)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
-              >
-                <Link2 className="size-3.5" />
-                <span>Send Pay Invite</span>
-              </button>
-              <button
-                onClick={() => setConnectOpen(true)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold rounded-xl shadow-xs transition-colors"
-              >
-                <div className="flex items-center -space-x-1 shrink-0">
-                  <SvglWhatsapp className="size-3.5 rounded-full ring-1 ring-background" />
-                  <SvglInstagram className="size-3.5 rounded-full ring-1 ring-background" />
-                  <SvglTelegram className="size-3.5 rounded-full ring-1 ring-background" />
-                </div>
-                <span>Connect Social Media</span>
-              </button>
-              <button
-                onClick={() => setNewChatOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold rounded-xl shadow-xs transition-colors"
-              >
-                <Plus className="size-4" />
-                <span>New Message</span>
-              </button>
-            </div>
-          }
-        />
+    <div className="w-full flex-1 flex flex-col space-y-6">
+      {/* PageHeader6 Toolbar */}
+      <PageHeader6
+        tag="Unified Omnichannel Messaging"
+        title="Messages & Automation Hub"
+        description="Powered by BrightBean Chat architecture. Shared inbox, visual automations, keyword triggers, and broadcast campaigns across WhatsApp, Instagram, Messenger & Telegram."
+        actions={
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={refreshConversations}
+              disabled={isLoading}
+              title="Refresh Conversations"
+              className="p-2 border border-border bg-card hover:bg-muted text-foreground rounded-xl shadow-xs transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
+            </button>
+            <button
+              onClick={() => setInviteOpen(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold rounded-xl shadow-xs transition-colors shrink-0"
+            >
+              <Link2 className="size-3.5" />
+              <span>Send Pay Invite</span>
+            </button>
+            <button
+              onClick={() => setConnectOpen(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold rounded-xl shadow-xs transition-colors"
+            >
+              <div className="flex items-center -space-x-1 shrink-0">
+                <SvglWhatsapp className="size-3.5 rounded-full ring-1 ring-background" />
+                <SvglInstagram className="size-3.5 rounded-full ring-1 ring-background" />
+                <SvglTelegram className="size-3.5 rounded-full ring-1 ring-background" />
+              </div>
+              <span>Connect Channels</span>
+            </button>
+            <button
+              onClick={() => setNewChatOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold rounded-xl shadow-xs transition-colors"
+            >
+              <Plus className="size-4" />
+              <span>New Message</span>
+            </button>
+          </div>
+        }
+      />
 
-        {/* 2-Pane Unified Messaging Workspace with Full Width and Height */}
+      {/* BrightBean Tabs Navigation Bar */}
+      <div className="flex items-center gap-1.5 p-1.5 bg-muted/30 border border-border rounded-2xl overflow-x-auto">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id)}
+              className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+                isActive
+                  ? "bg-card text-foreground shadow-xs border border-border font-bold ring-1 ring-border/50"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              }`}
+            >
+              <Icon className={`size-3.5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+              <span>{tab.label}</span>
+              {tab.id === "inbox" && conversations.filter((c) => c.status !== "done").length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-primary text-primary-foreground ml-1">
+                  {conversations.filter((c) => c.status !== "done").length}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab 1: Shared Inbox (2-Pane Layout) */}
+      {activeTab === "inbox" && (
         <div className="w-full flex-1 flex flex-col md:flex-row min-h-[580px] rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
           <ConversationList
             conversations={conversations}
@@ -328,11 +411,24 @@ export default function MessagesPage() {
             onSendMessage={handleSendMessage}
             onReactMessage={handleReactMessage}
             onOpenConnect={() => setConnectOpen(true)}
+            onPatchConversation={handlePatchConversation}
           />
         </div>
-      </div>
+      )}
 
-      {/* Social Media Integration Dialog */}
+      {/* Tab 2: Visual Flow Automations */}
+      {activeTab === "flows" && <FlowBuilder />}
+
+      {/* Tab 3: Keyword Triggers */}
+      {activeTab === "triggers" && <TriggerManager />}
+
+      {/* Tab 4: Multi-Channel Broadcast Campaigns */}
+      {activeTab === "broadcasts" && <BroadcastManager />}
+
+      {/* Tab 5: Connected Channels */}
+      {activeTab === "channels" && <ChannelManager onOpenConnect={() => setConnectOpen(true)} />}
+
+      {/* Dialogs */}
       <SocialConnectDialog
         open={connectOpen}
         onOpenChange={setConnectOpen}
@@ -340,7 +436,6 @@ export default function MessagesPage() {
         onUpdateChannels={setChannels}
       />
 
-      {/* Outbound New Message Dialog */}
       <NewChatDialog
         open={newChatOpen}
         onOpenChange={setNewChatOpen}
@@ -348,11 +443,27 @@ export default function MessagesPage() {
         onStartChat={handleStartChat}
       />
 
-      {/* Send Payment Invite Dialog */}
       <SendInviteDialog
         open={inviteOpen}
         onOpenChange={setInviteOpen}
       />
+    </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <DashboardShell pageTitle="Unified Messages & Automation Hub">
+      <React.Suspense
+        fallback={
+          <div className="w-full flex items-center justify-center py-20 text-xs text-muted-foreground">
+            <RefreshCw className="size-5 animate-spin mr-2" />
+            Loading Messages & Automation Hub...
+          </div>
+        }
+      >
+        <MessagesHubContent />
+      </React.Suspense>
     </DashboardShell>
   );
 }

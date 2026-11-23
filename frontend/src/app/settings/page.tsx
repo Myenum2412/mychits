@@ -5,7 +5,7 @@ import Link from "next/link"
 import { QRCodeSVG } from "qrcode.react"
 import { DashboardShell } from "@/components/dashboard-shell"
 import { PageHeader6 } from "@/components/ui/page-header-6"
-import { api, Member, WhatsAppSession } from "@/lib/api"
+import { api, Member, WhatsAppSession, MetaStatusResponse } from "@/lib/api"
 import { useAuth } from "@/context/auth-context"
 import {
   Settings,
@@ -35,6 +35,7 @@ import {
   EyeOff,
   Globe,
   MessageSquare,
+  X,
 } from "lucide-react"
 import {
   SvglWhatsapp,
@@ -76,6 +77,15 @@ export default function SettingsPage() {
   )
   const [sendingMsg, setSendingMsg] = useState(false)
   const [msgResult, setMsgResult] = useState<string | null>(null)
+
+  // Meta Graph API (v21.0) State for Facebook Pages & Instagram Business
+  // Reference: https://developers.facebook.com/docs/graph-api/
+  const [metaStatus, setMetaStatus] = useState<MetaStatusResponse | null>(null)
+  const [metaAppId, setMetaAppId] = useState<string>("1092837465019283")
+  const [metaAppSecret, setMetaAppSecret] = useState<string>("")
+  const [metaUserToken, setMetaUserToken] = useState<string>("")
+  const [connectingMeta, setConnectingMeta] = useState<boolean>(false)
+  const [metaSuccessMessage, setMetaSuccessMessage] = useState<string | null>(null)
 
   // User UPI ID & Dynamic QR Code Profile
   const [upiId, setUpiId] = useState<string>("apexchits@okaxis")
@@ -145,10 +155,13 @@ export default function SettingsPage() {
       // Check URL query parameters for tab
       const params = new URLSearchParams(window.location.search)
       const tabParam = params.get("tab")
-      if (tabParam && ["upi", "zernio", "whatsapp", "organization", "notifications"].includes(tabParam)) {
+      if (tabParam && ["upi", "zernio", "whatsapp", "meta", "organization", "notifications"].includes(tabParam)) {
         setActiveTab(tabParam)
       }
     }
+
+    // Load Meta Graph API status
+    api.getMetaStatus().then(setMetaStatus).catch(() => {})
   }, [])
 
   const handleTabChange = (tabId: string) => {
@@ -435,6 +448,46 @@ export default function SettingsPage() {
     setUpiId(`${base || "user"}${suffix}`)
   }
 
+  // Meta Graph API Actions
+  // Reference: https://developers.facebook.com/docs/graph-api/
+  const handleConnectMeta = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    setConnectingMeta(true)
+    try {
+      const res = await api.connectMetaGraph({
+        user_access_token: metaUserToken.trim() || undefined,
+        app_id: metaAppId.trim() || undefined,
+        app_secret: metaAppSecret.trim() || undefined,
+      })
+      setMetaStatus(res)
+      setMetaSuccessMessage(
+        `Meta Graph API: Successfully connected Facebook Page '${res.facebook.page_name}' & Instagram '@${res.instagram.username}'!`
+      )
+      setTimeout(() => setMetaSuccessMessage(null), 5000)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error connecting via Meta Graph API")
+    } finally {
+      setConnectingMeta(false)
+    }
+  }
+
+  const handleDisconnectMeta = async (platform?: "facebook" | "instagram") => {
+    try {
+      const res = await api.disconnectMeta(platform)
+      setMetaStatus(res)
+      setMetaSuccessMessage(`Disconnected ${platform ? platform.toUpperCase() : "all Meta accounts"}.`)
+      setTimeout(() => setMetaSuccessMessage(null), 4000)
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Error disconnecting Meta Graph")
+    }
+  }
+
+  const handleOpenMetaOAuth = () => {
+    const scopes = "pages_show_list,pages_messaging,instagram_basic,instagram_manage_messages"
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=http://localhost:3000/settings?tab=meta&scope=${encodeURIComponent(scopes)}&response_type=token`
+    window.open(oauthUrl, "_blank", "width=600,height=700")
+  }
+
   const SETTINGS_TABS = [
     {
       id: "upi",
@@ -457,6 +510,16 @@ export default function SettingsPage() {
       label: "WhatsApp Web (wwebjs)",
       icon: <SvglWhatsapp size={16} className="h-4 w-4" />,
       badge: session?.status === "connected" ? "Connected" : "QR Ready",
+    },
+    {
+      id: "meta",
+      label: "Meta Graph API (FB & IG)",
+      icon: (
+        <span className="p-0.5 rounded bg-[#0081FB] text-white flex items-center justify-center">
+          <SvglMessenger size={16} className="h-3.5 w-3.5" />
+        </span>
+      ),
+      badge: metaStatus?.connected ? "Connected" : "Graph v21.0",
     },
     {
       id: "organization",
@@ -1343,7 +1406,293 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* TAB 4: Organization & Chit Fund Profile Settings */}
+        {/* TAB 4: Meta Graph API (Facebook Pages & Instagram Direct Messaging) */}
+        {/* Reference: https://developers.facebook.com/docs/graph-api/ */}
+        {activeTab === "meta" && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden animate-in fade-in-50 duration-200 space-y-6 p-6">
+            {/* Header Banner */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-start gap-3">
+                <div className="size-11 rounded-xl bg-gradient-to-tr from-[#0081FB] to-[#00C6FF] flex items-center justify-center text-white shadow-sm shrink-0">
+                  <SvglMessenger size={24} className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      Meta Graph API Connecting Method
+                    </h3>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#0081FB]/10 text-[#0081FB] border border-[#0081FB]/20 font-bold">
+                      Meta Graph API v21.0
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                      FB Pages & IG Direct
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl">
+                    Official connecting architecture for Facebook Pages and Instagram Professional accounts using Meta Graph API v21.0. Automates page discovery, token exchanges, and real-time webhook subscriptions.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <a
+                  href="https://developers.facebook.com/docs/graph-api/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors shadow-2xs"
+                >
+                  <Globe className="size-3.5 text-[#0081FB]" />
+                  <span>Meta Graph API Docs</span>
+                  <ExternalLink className="size-3 ml-0.5 text-slate-400" />
+                </a>
+                <button
+                  type="button"
+                  onClick={handleOpenMetaOAuth}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl bg-[#0081FB] hover:bg-[#0070DF] text-white transition-colors shadow-2xs"
+                >
+                  <ExternalLink className="size-3.5" />
+                  <span>Launch Meta OAuth Dialog</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Success Toast */}
+            {metaSuccessMessage && (
+              <div className="p-3.5 text-xs rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-200 dark:border-emerald-800 flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                  <span className="font-semibold">{metaSuccessMessage}</span>
+                </div>
+                <button onClick={() => setMetaSuccessMessage(null)} className="text-emerald-700 hover:text-emerald-900">
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Status Cards Grid: Facebook & Instagram */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Facebook Page Card */}
+              <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <SvglMessenger size={20} className="text-[#0081FB]" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      Facebook Page Integration
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      metaStatus?.facebook.connected
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                    }`}
+                  >
+                    {metaStatus?.facebook.connected ? "Operational" : "Not Linked"}
+                  </span>
+                </div>
+                <div className="text-xs space-y-1.5 font-mono">
+                  <p className="text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-400">Page Name:</span>{" "}
+                    {metaStatus?.facebook.page_name || "Apex Chits & Finance Ltd"}
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-400">Page ID:</span>{" "}
+                    {metaStatus?.facebook.page_id || "102938475610293"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 font-sans">
+                    Scopes: <code className="text-[#0081FB]">pages_show_list</code>, <code className="text-[#0081FB]">pages_messaging</code>
+                  </p>
+                </div>
+                {metaStatus?.facebook.connected && (
+                  <button
+                    type="button"
+                    onClick={() => handleDisconnectMeta("facebook")}
+                    className="text-xs text-rose-600 hover:underline font-semibold"
+                  >
+                    Disconnect Facebook Page
+                  </button>
+                )}
+              </div>
+
+              {/* Instagram Account Card */}
+              <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <SvglInstagram size={20} className="text-[#E1306C]" />
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                      Instagram Direct Integration
+                    </span>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      metaStatus?.instagram.connected
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
+                    }`}
+                  >
+                    {metaStatus?.instagram.connected ? "Operational" : "Not Linked"}
+                  </span>
+                </div>
+                <div className="text-xs space-y-1.5 font-mono">
+                  <p className="text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-400">Account Handle:</span>{" "}
+                    @{metaStatus?.instagram.username || "apexchits.official"}
+                  </p>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold text-slate-400">IG User ID:</span>{" "}
+                    {metaStatus?.instagram.account_id || "17841400293847561"}
+                  </p>
+                  <p className="text-[11px] text-slate-400 font-sans">
+                    Scopes: <code className="text-[#E1306C]">instagram_basic</code>, <code className="text-[#E1306C]">instagram_manage_messages</code>
+                  </p>
+                </div>
+                {metaStatus?.instagram.connected && (
+                  <button
+                    type="button"
+                    onClick={() => handleDisconnectMeta("instagram")}
+                    className="text-xs text-rose-600 hover:underline font-semibold"
+                  >
+                    Disconnect Instagram
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Connect Form */}
+            <form onSubmit={handleConnectMeta} className="space-y-4 pt-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                <Key className="size-3.5 text-[#0081FB]" />
+                <span>Meta App Credentials & User Access Token</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Meta App ID *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={metaAppId}
+                    onChange={(e) => setMetaAppId(e.target.value)}
+                    placeholder="e.g. 1092837465019283"
+                    className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0081FB]"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Created in Meta for Developers app dashboard.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Meta App Secret (Optional)
+                  </label>
+                  <input
+                    type="password"
+                    value={metaAppSecret}
+                    onChange={(e) => setMetaAppSecret(e.target.value)}
+                    placeholder="App secret for token encryption"
+                    className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0081FB]"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Required for long-lived access token renewal.
+                  </p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Meta User Access Token / System User Token
+                  </label>
+                  <input
+                    type="password"
+                    value={metaUserToken}
+                    onChange={(e) => setMetaUserToken(e.target.value)}
+                    placeholder="Paste Meta User Token with pages_messaging & instagram_manage_messages scope or click Connect below"
+                    className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0081FB]"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Can be generated from the{" "}
+                    <a
+                      href="https://developers.facebook.com/tools/explorer/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#0081FB] hover:underline font-semibold"
+                    >
+                      Meta Graph API Explorer
+                    </a>
+                    .
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={connectingMeta}
+                  className="px-4 py-2.5 bg-[#0081FB] hover:bg-[#0070DF] text-white text-xs font-bold rounded-xl shadow-xs transition-colors disabled:opacity-50"
+                >
+                  {connectingMeta ? "Connecting via Graph API..." : "Connect Facebook & Instagram via Graph API"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDisconnectMeta()}
+                  className="px-4 py-2.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 transition-colors"
+                >
+                  Disconnect Both
+                </button>
+              </div>
+            </form>
+
+            {/* Webhook Configuration Card */}
+            <div className="p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-emerald-500" />
+                  <span>Meta Webhooks Integration Endpoint</span>
+                </span>
+                <a
+                  href="https://developers.facebook.com/docs/graph-api/webhooks"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-[#0081FB] hover:underline font-semibold flex items-center gap-1"
+                >
+                  <span>Webhooks Guide</span>
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+                <div>
+                  <span className="text-[11px] text-slate-400 font-sans block mb-1">
+                    Callback URL:
+                  </span>
+                  <input
+                    type="text"
+                    readOnly
+                    value="http://127.0.0.1:8000/api/v1/meta/webhook"
+                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                  />
+                </div>
+                <div>
+                  <span className="text-[11px] text-slate-400 font-sans block mb-1">
+                    Verify Token:
+                  </span>
+                  <input
+                    type="text"
+                    readOnly
+                    value={metaStatus?.webhook_verify_token || "chitstream_meta_verify_token_2026"}
+                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Configure this Callback URL and Verify Token in the Meta App Dashboard under <strong>Webhooks &gt; Messenger</strong> and <strong>Instagram &gt; Webhooks</strong> to stream subscriber incoming messages directly into the Unified Inbox.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: Organization & Chit Fund Profile Settings */}
         {activeTab === "organization" && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xs space-y-6 animate-in fade-in-50 duration-200">
             <div className="flex items-center gap-2.5 border-b border-slate-100 dark:border-slate-800 pb-4">

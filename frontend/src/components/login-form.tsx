@@ -33,6 +33,7 @@ export function LoginForm({
   // Authenticate user strictly against the database
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("Submitting login for:", email, "with pwd:", password)
     setIsLoading(true)
     setError(null)
 
@@ -78,6 +79,40 @@ export function LoginForm({
             </div>
           </div>
         )}
+
+        {/* Quick Role Fill Pills */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setEmail("admin@orgmenu.com")
+              setPassword("admin")
+            }}
+            className={cn(
+              "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all",
+              email === "admin@orgmenu.com"
+                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+            )}
+          >
+            OrgMenu Admin
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail("user@chits.com")
+              setPassword("user")
+            }}
+            className={cn(
+              "flex-1 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all",
+              email === "user@chits.com"
+                ? "bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-200"
+            )}
+          >
+            Chits Member
+          </button>
+        </div>
 
         <Field>
           <FieldLabel htmlFor="email">Email address</FieldLabel>
@@ -139,7 +174,7 @@ export function LoginForm({
             type="button"
             onClick={() => {
               login("subscriber@gmail.com", "chits", "Google Subscriber");
-              router.push("/dashboard");
+              window.location.href = "/dashboard";
             }}
             className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold"
           >
@@ -151,7 +186,7 @@ export function LoginForm({
             type="button"
             onClick={() => {
               login("developer@github.com", "orgmenu", "GitHub Admin");
-              router.push("/dashboard");
+              window.location.href = "/dashboard";
             }}
             className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold text-slate-900 dark:text-slate-100"
           >
@@ -163,7 +198,7 @@ export function LoginForm({
             type="button"
             onClick={() => {
               login("apple.user@icloud.com", "chits", "Apple Member");
-              router.push("/dashboard");
+              window.location.href = "/dashboard";
             }}
             className="flex items-center justify-center gap-1.5 py-2 px-3 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors text-xs font-semibold text-slate-900 dark:text-slate-100"
           >

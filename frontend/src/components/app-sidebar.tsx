@@ -92,9 +92,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: <MegaphoneIcon className="size-5" />,
     },
     {
-      title: "Messages",
+      title: "Messages & Automation",
       url: "/messages",
       icon: <MessageSquareIcon className="size-5" />,
+      items: [
+        { title: "Shared Inbox", url: "/messages" },
+        { title: "Flow Automations", url: "/messages?tab=flows" },
+        { title: "Keyword Triggers", url: "/messages?tab=triggers" },
+        { title: "Broadcast Campaigns", url: "/messages?tab=broadcasts" },
+        { title: "Connected Channels", url: "/messages?tab=channels" },
+      ],
     },
   ]
 
@@ -136,9 +143,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       icon: <MegaphoneIcon className="size-5" />,
     },
     {
-      title: "Messages",
+      title: "Messages & Automation",
       url: "/messages",
       icon: <MessageSquareIcon className="size-5" />,
+      items: [
+        { title: "Shared Inbox", url: "/messages" },
+        { title: "Flow Automations", url: "/messages?tab=flows" },
+        { title: "Keyword Triggers", url: "/messages?tab=triggers" },
+        { title: "Broadcast Campaigns", url: "/messages?tab=broadcasts" },
+        { title: "Connected Channels", url: "/messages?tab=channels" },
+      ],
     },
     {
       title: "Rewards",

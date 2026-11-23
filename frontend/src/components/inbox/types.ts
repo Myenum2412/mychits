@@ -49,6 +49,14 @@ export interface Conversation {
   lastMessage: string;
   updatedTime: string;
   unreadCount: number;
+  // BrightBean Shared Inbox Features
+  status?: "open" | "done";
+  automationPaused?: boolean;
+  assignedTo?: string;
+  labels?: string[];
+  internalNotes?: string;
+  windowExpiresAt?: string;
+  isWindowActive?: boolean;
   // Chit fund subscriber association
   linkedSubscriberId?: number;
   linkedSubscriberName?: string;
@@ -56,6 +64,22 @@ export interface Conversation {
   linkedTicketNo?: number;
   dueAmount?: number;
 }
+
+export interface ConversationLabelDef {
+  name: string;
+  color: string;
+  bg: string;
+  border: string;
+}
+
+export const BRIGHTBEAN_LABELS: ConversationLabelDef[] = [
+  { name: "Chit Due", color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-950/40", border: "border-rose-200 dark:border-rose-800" },
+  { name: "Auction Bidder", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-950/40", border: "border-purple-200 dark:border-purple-800" },
+  { name: "Needs a person", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-950/40", border: "border-amber-200 dark:border-amber-800" },
+  { name: "Payment Settled", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/40", border: "border-emerald-200 dark:border-emerald-800" },
+  { name: "VIP Subscriber", color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-950/40", border: "border-indigo-200 dark:border-indigo-800" },
+  { name: "KYC Needed", color: "text-sky-600 dark:text-sky-400", bg: "bg-sky-50 dark:bg-sky-950/40", border: "border-sky-200 dark:border-sky-800" },
+];
 
 export interface SocialChannelIntegration {
   id: string;
